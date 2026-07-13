@@ -1,0 +1,9 @@
+.linkedin_browser/
+__pycache__/
+*.pyc
+*.egg-info/
+.venv/
+venv/
+logs/
+data/
+.env

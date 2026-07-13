@@ -1,0 +1,20 @@
+[project]
+name = "linkedin-job-agent"
+version = "0.1.0"
+description = "LinkedIn post job agent — scrape posts, Ollama classify, email apply, Telegram notify"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "playwright>=1.40.0",
+    "ollama>=0.3.0",
+]
+
+[project.scripts]
+linkedin-agent = "linkedin_agent.cli:main"
+
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
