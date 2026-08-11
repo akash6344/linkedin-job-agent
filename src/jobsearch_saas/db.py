@@ -1,4 +1,4 @@
-"""Multi-tenant SQLite/Postgres schema for LetItApply SaaS."""
+"""Multi-tenant storage for LetItApply SaaS (SQLite locally, MongoDB when MONGO_URI is set)."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any, Iterator
 from urllib.parse import urlparse
 
-from jobsearch_saas.config import DATABASE_URL, UPLOAD_DIR
+from jobsearch_saas.config import DATABASE_URL, MONGO_URI, UPLOAD_DIR, use_mongo
 
 
 def _utc_now() -> str:
@@ -20,10 +20,9 @@ def _utc_now() -> str:
 def _sqlite_path() -> Path:
     parsed = urlparse(DATABASE_URL)
     if parsed.scheme != "sqlite":
-        raise RuntimeError("Only sqlite:// URLs are supported in this MVP build")
+        raise RuntimeError("Only sqlite:// URLs are supported for the SQLite backend")
     path = parsed.path
     if path.startswith("/") and len(path) > 1 and path[2] == ":":
-        # Windows-style absolute — unused on macOS
         path = path.lstrip("/")
     return Path(path)
 
@@ -257,9 +256,18 @@ def init_db() -> None:
     global _initialized
     if _initialized:
         return
+    try:
+        UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+    except OSError:
+        pass
+    if use_mongo():
+        from jobsearch_saas.mongo_db import ensure_indexes
+
+        ensure_indexes(MONGO_URI)
+        _initialized = True
+        return
     path = _sqlite_path()
     path.parent.mkdir(parents=True, exist_ok=True)
-    UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(path)
     try:
         conn.executescript(SCHEMA)
@@ -271,8 +279,14 @@ def init_db() -> None:
 
 
 @contextmanager
-def connect() -> Iterator[sqlite3.Connection]:
+def connect() -> Iterator[Any]:
     init_db()
+    if use_mongo():
+        from jobsearch_saas.mongo_db import connect_mongo
+
+        with connect_mongo(MONGO_URI) as conn:
+            yield conn
+        return
     conn = sqlite3.connect(_sqlite_path())
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
@@ -286,7 +300,7 @@ def connect() -> Iterator[sqlite3.Connection]:
         conn.close()
 
 
-def row_to_dict(row: sqlite3.Row | None) -> dict[str, Any] | None:
+def row_to_dict(row: Any | None) -> dict[str, Any] | None:
     return dict(row) if row else None
 
 
@@ -301,7 +315,7 @@ def loads(text: str | None, default: Any = None) -> Any:
 
 
 def audit(
-    conn: sqlite3.Connection,
+    conn: Any,
     *,
     user_id: str | None,
     action: str,
@@ -319,7 +333,7 @@ def audit(
 
 
 def enqueue(
-    conn: sqlite3.Connection,
+    conn: Any,
     *,
     job_type: str,
     payload: dict[str, Any],

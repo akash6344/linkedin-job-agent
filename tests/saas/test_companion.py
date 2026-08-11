@@ -15,11 +15,15 @@ class CompanionTests(unittest.TestCase):
         os.environ["SAAS_DATABASE_URL"] = f"sqlite:///{root / 'saas.db'}"
         os.environ["SAAS_UPLOAD_DIR"] = str(root / "uploads")
         os.environ["SAAS_SECRET_KEY"] = "test-secret"
+        os.environ["SAAS_FORCE_SQLITE"] = "1"
+        os.environ.pop("MONGO_URI", None)
         import jobsearch_saas.config as cfg
         import jobsearch_saas.db as dbmod
 
         cfg.DATABASE_URL = os.environ["SAAS_DATABASE_URL"]
         cfg.UPLOAD_DIR = Path(os.environ["SAAS_UPLOAD_DIR"])
+        cfg.MONGO_URI = ""
+        cfg.FORCE_SQLITE = True
         dbmod._initialized = False
         dbmod.init_db()
 

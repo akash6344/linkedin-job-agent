@@ -16,12 +16,16 @@ class SaasTestCase(unittest.TestCase):
         os.environ["SAAS_DATABASE_URL"] = f"sqlite:///{db_path}"
         os.environ["SAAS_UPLOAD_DIR"] = str(root / "uploads")
         os.environ["SAAS_SECRET_KEY"] = "test-secret-key"
+        os.environ["SAAS_FORCE_SQLITE"] = "1"
+        os.environ.pop("MONGO_URI", None)
         # Force re-init
         import jobsearch_saas.db as dbmod
         import jobsearch_saas.config as cfg
 
         cfg.DATABASE_URL = os.environ["SAAS_DATABASE_URL"]
         cfg.UPLOAD_DIR = Path(os.environ["SAAS_UPLOAD_DIR"])
+        cfg.MONGO_URI = ""
+        cfg.FORCE_SQLITE = True
         dbmod._initialized = False
         dbmod.init_db()
 

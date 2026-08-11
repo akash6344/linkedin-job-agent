@@ -65,6 +65,15 @@ SECRET_KEY = os.environ.get("SAAS_SECRET_KEY", "dev-only-change-me")
 BASE_URL = _default_base_url()
 DATABASE_URL = _default_database_url()
 UPLOAD_DIR = _default_upload_dir()
+MONGO_URI = os.environ.get("MONGO_URI", "").strip()
+# Prefer Mongo whenever MONGO_URI is set (Vercel + local). Tests can force SQLite.
+FORCE_SQLITE = os.environ.get("SAAS_FORCE_SQLITE", "0") == "1"
+
+
+def use_mongo() -> bool:
+    return bool(MONGO_URI) and not FORCE_SQLITE
+
+
 SESSION_COOKIE = "letitapply_session"
 SESSION_DAYS = int(os.environ.get("SAAS_SESSION_DAYS", "14"))
 
