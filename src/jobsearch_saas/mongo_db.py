@@ -152,7 +152,17 @@ def _client(uri: str) -> MongoClient:
     global _CLIENT
     with _LOCK:
         if _CLIENT is None:
-            _CLIENT = MongoClient(uri, serverSelectionTimeoutMS=8000)
+            kwargs: dict[str, Any] = {
+                "serverSelectionTimeoutMS": 20000,
+                "connectTimeoutMS": 20000,
+            }
+            try:
+                import certifi
+
+                kwargs["tlsCAFile"] = certifi.where()
+            except Exception:
+                pass
+            _CLIENT = MongoClient(uri, **kwargs)
         return _CLIENT
 
 

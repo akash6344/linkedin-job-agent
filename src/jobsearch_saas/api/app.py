@@ -149,7 +149,11 @@ def flash(request: Request, message: str) -> None:
 
 @app.on_event("startup")
 def _startup() -> None:
-    db.init_db()
+    try:
+        db.init_db()
+    except Exception as exc:
+        # Don't brick the whole deploy if Mongo is briefly unreachable on cold start.
+        print(f"db.init_db deferred: {exc}")
 
 
 @app.get("/", response_class=HTMLResponse)
