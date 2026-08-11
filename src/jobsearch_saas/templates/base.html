@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{% block title %}{{ app_name }}{% endblock %}</title>
+  <link rel="stylesheet" href="/static/app.css" />
+</head>
+<body class="{% block body_class %}{% endblock %}">
+  <nav class="nav">
+    <a class="brand" href="/">Let<span>It</span>Apply</a>
+    <div class="links">
+      {% if user %}
+        <a href="/dashboard">Today</a>
+        <a href="/matches">Matches</a>
+        <a href="/tracker">Tracker</a>
+        <a href="/download">Companion</a>
+        <a href="/billing">Pricing</a>
+        <a href="/settings">Settings</a>
+        {% if plan %}<span class="badge good">{{ plan.name if plan.name is defined else plan.plan_id }} · {{ plan.applications_remaining }} sends · {{ plan.companion_uploads_remaining }} syncs</span>{% endif %}
+        <form method="post" action="/logout" style="display:inline">
+          <button class="btn ghost" type="submit">Log out</button>
+        </form>
+      {% else %}
+        <a href="/#how">How it works</a>
+        <a href="/download">Companion</a>
+        <a href="/billing">Pricing</a>
+        <a href="/legal/sources">Sources</a>
+        <a href="/login">Sign in</a>
+        <a class="btn primary" href="/signup">Get started</a>
+      {% endif %}
+    </div>
+  </nav>
+  <main class="wrap">
+    {% if flash %}<div class="flash">{{ flash }}</div>{% endif %}
+    {% block content %}{% endblock %}
+    <p class="footer">
+      <a href="/legal/terms">Terms</a>
+      <a href="/legal/privacy">Privacy</a>
+      <a href="/legal/refunds">Refunds</a>
+      <a href="/legal/sources">Sources</a>
+      <span>{{ support_email }}</span>
+    </p>
+  </main>
+</body>
+</html>

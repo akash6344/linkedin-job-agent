@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Sources — {{ app_name }}{% endblock %}
+{% block content %}
+<article class="card">
+  <h1>Job source & automation disclosure</h1>
+  <p>We only commercialize <strong>permitted</strong> acquisition methods. LinkedIn’s terms prohibit third-party scraping and unauthorized bots; that path is <strong>not</strong> sold as a product feature.</p>
+  <table>
+    <thead><tr><th>Source</th><th>Method</th><th>Status</th><th>Notes</th></tr></thead>
+    <tbody>
+      {% for s in sources %}
+      <tr>
+        <td>{{ s.name }}</td>
+        <td>{{ s.method }}</td>
+        <td><span class="badge {% if s.compliance.startswith('permitted') %}good{% else %}warn{% endif %}">{{ s.compliance }}</span></td>
+        <td class="muted">{{ s.notes }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <p class="muted">Personal CLI tooling in this repository may still include a LinkedIn session helper for the original author’s private use — it is not the SaaS commercial workflow.</p>
+</article>
+{% endblock %}

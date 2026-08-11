@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}Download Companion — LetItApply{% endblock %}
+{% block content %}
+<p class="section-kicker">Desktop companion</p>
+<h1>Search LinkedIn on your laptop</h1>
+<p class="lead">
+  Install LetItApply Companion. It opens Chrome on <strong>your</strong> computer, uses <strong>your</strong> LinkedIn login,
+  and syncs hiring posts to your LetItApply dashboard. You still approve every application.
+</p>
+
+<div class="grid cols-2">
+  <div class="panel">
+    <h2>What you get</h2>
+    <p class="muted">Four big buttons. No terminal required for daily use once set up.</p>
+    <ol>
+      <li>Sign in with your LetItApply account</li>
+      <li>Connect LinkedIn (once)</li>
+      <li>Start searching</li>
+      <li>Open dashboard to approve</li>
+    </ol>
+    <p class="muted">Free plan: {{ 5 }} companion uploads / week. Paid passes unlock higher sync limits.</p>
+    {% if user %}
+    <a class="btn primary" href="#install">Install steps</a>
+    {% else %}
+    <a class="btn primary" href="/signup">Create account first</a>
+    {% endif %}
+  </div>
+  <div class="panel">
+    <h2>Safety</h2>
+    <p class="muted">Your LinkedIn session stays on your laptop. LetItApply servers never log into LinkedIn for you.</p>
+    <p class="muted">Uploads and sends are checked against your plan on the server — copying the companion cannot bypass quotas.</p>
+  </div>
+</div>
+
+<section class="section" id="install">
+  <p class="section-kicker">Beta install</p>
+  <h2>Mac / Windows (developer beta)</h2>
+  <div class="panel">
+    <p>Packaged DMG/EXE downloads will appear here for public beta. For now, run the companion from the project:</p>
+    <pre style="background:#0f172a;color:#e2e8f0;padding:1rem;border-radius:12px;overflow:auto;font-size:0.85rem"># Start the website
+bash scripts/run_saas.sh
+
+# In another terminal — Companion UI
+cd companion
+npm install
+LETITAPPLY_API=http://127.0.0.1:8000 npm start</pre>
+    <p class="muted">Requires Python 3.10+, <code>pip install -e ".[saas]"</code>, and <code>python -m playwright install chromium</code>.</p>
+    <p><a class="btn ghost" href="/dashboard">Back to dashboard</a></p>
+  </div>
+</section>
+{% endblock %}

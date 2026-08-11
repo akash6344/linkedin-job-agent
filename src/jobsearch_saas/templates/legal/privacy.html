@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}Privacy — {{ app_name }}{% endblock %}
+{% block content %}
+<article class="card">
+  <p class="section-kicker">Legal</p>
+<h1>Privacy Policy</h1>
+  <p class="muted">Aligned with India’s Digital Personal Data Protection Act, 2023 principles. Notice version 2026-08-v1.</p>
+  <h2>What we collect</h2>
+  <ul>
+    <li>Account data: name, email, phone, links you provide</li>
+    <li>Resumes and parsed skills</li>
+    <li>Search preferences and application history</li>
+    <li>OAuth tokens for Gmail (encrypted) when you connect send/read</li>
+    <li>Payment metadata from Razorpay (we do not store full card numbers)</li>
+  </ul>
+  <h2>Purposes (separate consents)</h2>
+  <ul>
+    <li><strong>Job matching</strong> — find and score openings for you</li>
+    <li><strong>Email sending</strong> — send approved applications from your Gmail</li>
+    <li><strong>Product communications</strong> — receipts, beta surveys, product tips</li>
+  </ul>
+  <h2>Your rights</h2>
+  <p>You can view consent history, export your data, revoke email access, and delete your account from Settings. Withdrawal of matching consent ends processing for that purpose.</p>
+  <h2>Retention</h2>
+  <p>We keep active account data while your account exists. After deletion, personal content is erased; limited payment stubs may remain for tax/compliance.</p>
+  <h2>Contact</h2>
+  <p>{{ support_email }}</p>
+</article>
+{% endblock %}

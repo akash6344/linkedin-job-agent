@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}Tracker — {{ app_name }}{% endblock %}
+{% block content %}
+<p class="section-kicker">Pipeline</p>
+<h1>Application tracker</h1>
+<p class="muted">Saved → Drafted → Applied → Replied → Interview → Offer / Rejected</p>
+<div class="panel">
+  <table>
+    <thead><tr><th>Job</th><th>Stage</th><th>Method</th><th>Update</th></tr></thead>
+    <tbody>
+      {% for a in applications %}
+      <tr>
+        <td>
+          <strong>{{ a.title or 'Untitled' }}</strong><br />
+          <span class="muted">{{ a.company }} · {{ a.subject or '' }}</span>
+        </td>
+        <td><span class="badge">{{ a.stage }}</span></td>
+        <td>{{ a.apply_method }}</td>
+        <td>
+          <form method="post" action="/tracker/{{ a.id }}/stage" style="display:flex; gap:0.3rem">
+            <select name="stage">
+              {% for s in ['saved','drafted','applied','replied','interview','offer','rejected'] %}
+              <option value="{{ s }}" {% if a.stage==s %}selected{% endif %}>{{ s }}</option>
+              {% endfor %}
+            </select>
+            <button class="btn ghost" type="submit">Save</button>
+          </form>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="4" class="muted">No applications yet.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

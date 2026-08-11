@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Terms — {{ app_name }}{% endblock %}
+{% block content %}
+<article class="card">
+  <p class="section-kicker">Legal</p>
+<h1>Terms of Service</h1>
+  <p class="muted">Last updated: August 2026 · Notice version 2026-08-v1</p>
+  <p>{{ app_name }} is a job-search copilot. We help you discover relevant openings, prepare application drafts, and track status. We do <strong>not</strong> guarantee interviews, offers, or employment.</p>
+  <h2>Your responsibilities</h2>
+  <ul>
+    <li>Provide accurate profile and resume information.</li>
+    <li>Review and approve every outbound application email before send.</li>
+    <li>Comply with employer and platform rules for any site you visit.</li>
+    <li>Do not use the product to spam employers or misrepresent credentials.</li>
+  </ul>
+  <h2>Automation</h2>
+  <p>Default mode is human-in-the-loop. Optional auto-send (if enabled later) remains capped, auditable, and pauseable. We do not sell LinkedIn scraping or unauthorized bot activity as a commercial feature.</p>
+  <h2>Passes</h2>
+  <p>Paid access is sold as time-boxed passes with application quotas. Unused quota does not roll over after expiry unless stated on checkout.</p>
+  <h2>Contact</h2>
+  <p>{{ support_email }}</p>
+</article>
+{% endblock %}

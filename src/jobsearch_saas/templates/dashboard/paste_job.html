@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}Paste job — {{ app_name }}{% endblock %}
+{% block content %}
+<div class="card" style="max-width:640px">
+  <h1>Paste a job</h1>
+  <p class="muted">User-provided postings are always permitted. Use this for emails, Telegram posts, or career pages.</p>
+  <form method="post" action="/jobs/paste">
+    <label>Title</label><input name="title" required />
+    <label>Company</label><input name="company" required />
+    <label>Location</label><input name="location" value="India" />
+    <label>Apply email</label><input name="apply_email" />
+    <label>Apply URL</label><input name="apply_url" />
+    <label>Description</label><textarea name="description" required></textarea>
+    <p><button class="btn" type="submit">Save & match</button></p>
+  </form>
+</div>
+{% endblock %}

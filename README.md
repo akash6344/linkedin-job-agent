@@ -1,72 +1,44 @@
-# LinkedIn Job Agent
+# LinkedIn Job Agent + LetItApply
+
+Two products live in this repo:
+
+1. **Personal CLI agent** (`linkedin_agent`) — your private LinkedIn-post pipeline (email apply + Telegram).
+2. **LetItApply SaaS** (`jobsearch_saas`) — multi-tenant web copilot for Indian early-career candidates: match feed, human-approved drafts, Gmail OAuth, Razorpay passes.
+
+> Commercial SaaS does **not** sell LinkedIn scraping. See `/legal/sources` and `docs/product/mvp.md`.
+
+## Personal CLI (existing)
 
 Automates job discovery from **LinkedIn posts** (not the Jobs tab), classifies postings with local **Ollama**, sends email applications with the right resume PDF, and notifies you on **Telegram** for Google Forms or unclear cases.
 
-## Search setup
-
-Runs **3 separate searches** per cycle:
-
-| Search | Resume PDF |
-|--------|------------|
-| Software Engineer hiring | `resumes/Akash_Uppala_Resume.pdf` |
-| AI engineer hiring | `resumes/Akash_Uppala_Resume(AI).pdf` |
-| Python developer hiring | `resumes/Akash_Uppala_Resume.pdf` |
-
-Filters: **Posts → Latest → Past 24 hours**
-
-## Quick start
+### Quick start
 
 ```bash
 cd ~/linkedin-job-agent
 cp .env.example .env
-# Add TELEGRAM_*, GMAIL_APP_PASSWORD to .env
-
-# Place your PDFs in resumes/ (already configured):
-# resumes/Akash_Uppala_Resume.pdf       — Software Engineer hiring + Python developer hiring
-# resumes/Akash_Uppala_Resume(AI).pdf   — AI engineer hiring
-
 pip install -e .
 python -m playwright install chromium
-
-# First run — log in to LinkedIn (visible browser, session saved)
 python -m linkedin_agent login
-
-# Run pipeline in background (no Chrome window; uses saved session)
-# Emails are sent via Gmail — no browser for applying
 python -m linkedin_agent run
 ```
 
-## Environment
+## LetItApply SaaS
 
-| Variable | Description |
-|----------|-------------|
-| `TELEGRAM_BOT_TOKEN` | From @BotFather |
-| `TELEGRAM_CHAT_ID` | Your chat ID |
-| `GMAIL_ADDRESS` | Sender email |
-| `GMAIL_APP_PASSWORD` | Gmail app password |
-| `DRY_RUN` | `1` = preview on Telegram; `0` = send emails |
-| `LINKEDIN_BROWSER_MODE` | `minimized` (default, background Chrome), `headless`, or `visible` |
-| `LINKEDIN_HIDE_CHROME` | `1` = keep Chrome off-screen during scrape (macOS) |
-| `SEARCH_DELAY_SEC` | Pause between role searches (default 15s) |
-| `SCROLL_COUNT` | Scroll passes per search (default 12) |
-| `MAX_POSTS_PER_SEARCH` | Cap posts kept per keyword (default 80) |
-| `SCHEDULE_INTERVAL_SEC` | LaunchAgent interval in seconds (default 1800 = 30 min) |
+India-first job-search copilot with a [LoopCV](https://www.loopcv.pro/)-inspired setup flow — but every send waits for your approval.
 
-## Commands
-
-- `python -m linkedin_agent login` — save LinkedIn session
-- `python -m linkedin_agent run` — scrape → analyze → apply/notify
-
-## Scheduling (every 30 minutes + on wake)
+**Companion (Electron):** searches LinkedIn on the user's laptop and syncs posts to the cloud. See [`companion/README.md`](companion/README.md) and [`docs/product/companion-beta-guide.md`](docs/product/companion-beta-guide.md).
 
 ```bash
-bash scripts/setup_scheduler.sh
+pip install -e ".[saas]"
+bash scripts/run_saas.sh
+# → http://127.0.0.1:8000
+
+cd companion && npm install && LETITAPPLY_API=http://127.0.0.1:8000 npm start
 ```
 
-This installs:
-- **Every 30 minutes** — regular scrape/apply run (override with `SCHEDULE_INTERVAL_SEC`)
-- **On Mac wake** — runs immediately when you open the laptop from sleep (while logged in)
+Set `GOOGLE_CLIENT_*` and `RAZORPAY_*` in `.env` for production email and payments.
 
-Logs: `logs/cron.log` (scheduled), `logs/wake.log` (wake listener)
+Docs: `docs/product/mvp.md`, `docs/product/companion-beta-guide.md`, `docs/validation/`, `docs/legal/`
 
-Requires Ollama running locally with `llama3.1`.
+
+

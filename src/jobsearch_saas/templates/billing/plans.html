@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block title %}Pricing — LetItApply{% endblock %}
+{% block content %}
+<p class="section-kicker">Pricing</p>
+<h1>Job-search passes</h1>
+{% if entitlement %}
+<p class="muted">Current plan: <strong>{{ entitlement.plan_id }}</strong>
+  {% if entitlement.valid_until %}· valid until {{ entitlement.valid_until[:10] }}{% endif %}
+  · {{ entitlement.applications_remaining }} sends left this month
+</p>
+{% else %}
+<p class="muted"><a href="/signup">Create an account</a> to buy a pass.</p>
+{% endif %}
+{% if not razorpay_ready %}
+<div class="warn-box">Razorpay keys not set — checkout works in <strong>dev mode</strong> (signature <code>dev_bypass</code>). Set RAZORPAY_KEY_ID / SECRET for production.</div>
+{% endif %}
+<div class="pricing-grid">
+  {% for p in plans %}
+  <div class="price-tile {% if p.plan_id == 'pro_90' %}featured{% endif %}">
+    <h2>{{ p.name }}</h2>
+    <div class="amount">{{ p.amount_display }}</div>
+    <p class="meta">
+      {% if p.days %}{{ p.days }}-day pass · {% endif %}
+      {{ p.applications_per_month }} approved applications/month ·
+      {{ p.matches_per_week }} matches/week ·
+      {{ p.companion_uploads_per_week }} companion uploads/week
+    </p>
+    {% if p.breakdown and p.breakdown.gst_paise %}
+    <p class="muted" style="font-size:0.85rem">Base {{ p.base_display }} + GST {{ p.gst_display }}</p>
+    {% endif %}
+    {% if p.plan_id != 'free' %}
+      {% if user %}
+      <form method="post" action="/billing/checkout">
+        <input type="hidden" name="plan_id" value="{{ p.plan_id }}" />
+        <button class="btn primary" type="submit">Buy pass</button>
+      </form>
+      {% else %}
+      <a class="btn primary" href="/signup">Sign up to buy</a>
+      {% endif %}
+    {% endif %}
+  </div>
+  {% endfor %}
+</div>
+{% if user and allow_beta_grant %}
+<form method="post" action="/billing/beta-grant" style="margin:1.2rem 0">
+  <button class="btn secondary" type="submit">Grant beta Pro (30 days, no charge)</button>
+</form>
+{% endif %}
+{% if payments %}
+<div class="panel">
+  <h2>Payment history</h2>
+  <table>
+    <thead><tr><th>When</th><th>Plan</th><th>Amount</th><th>Status</th></tr></thead>
+    <tbody>
+      {% for pay in payments %}
+      <tr>
+        <td>{{ pay.created_at[:19] }}</td>
+        <td>{{ pay.plan_id }}</td>
+        <td>₹{{ '%.0f'|format(pay.amount_paise / 100) }}</td>
+        <td>{{ pay.status }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+{% endblock %}

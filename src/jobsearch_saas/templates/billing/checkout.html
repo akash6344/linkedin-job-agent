@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}Checkout — {{ app_name }}{% endblock %}
+{% block content %}
+<div class="card" style="max-width:560px">
+  <h1>Checkout</h1>
+  <p><strong>{{ order.plan_name }}</strong></p>
+  <p class="stat">₹{{ '%.0f'|format(order.amount / 100) }}</p>
+  <p class="muted">
+    Base ₹{{ '%.0f'|format(order.breakdown.base_paise / 100) }}
+    + GST ₹{{ '%.0f'|format(order.breakdown.gst_paise / 100) }}
+    · {{ plan.days }} days · {{ plan.applications_per_month }} applications/month
+  </p>
+  <p class="muted">Validity, quota, GST, and cancellation terms are shown before payment. Passes are one-time (no auto-renew).</p>
+
+  {% if order.dev_mode %}
+  <div class="warn-box">Dev mode: complete payment without Razorpay.</div>
+  <form method="post" action="/billing/verify">
+    <input type="hidden" name="payment_id" value="{{ order.payment_id }}" />
+    <input type="hidden" name="razorpay_order_id" value="{{ order.order_id }}" />
+    <input type="hidden" name="razorpay_payment_id" value="pay_dev_{{ order.payment_id[:8] }}" />
+    <input type="hidden" name="razorpay_signature" value="dev_bypass" />
+    <button class="btn primary" type="submit">Verify payment (dev)</button>
+  </form>
+  {% else %}
+  <button class="btn primary" id="rzp-button">Pay with Razorpay</button>
+  <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+  <script>
+    const options = {
+      key: "{{ order.key_id }}",
+      amount: "{{ order.amount }}",
+      currency: "INR",
+      name: "{{ app_name }}",
+      description: "{{ order.plan_name }}",
+      order_id: "{{ order.order_id }}",
+      handler: function (response) {
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = '/billing/verify';
+        const fields = {
+          payment_id: "{{ order.payment_id }}",
+          razorpay_order_id: response.razorpay_order_id,
+          razorpay_payment_id: response.razorpay_payment_id,
+          razorpay_signature: response.razorpay_signature
+        };
+        for (const [k, v] of Object.entries(fields)) {
+          const input = document.createElement('input');
+          input.type = 'hidden'; input.name = k; input.value = v; form.appendChild(input);
+        }
+        document.body.appendChild(form); form.submit();
+      }
+    };
+    document.getElementById('rzp-button').onclick = function(e) {
+      e.preventDefault();
+      new Razorpay(options).open();
+    };
+  </script>
+  {% endif %}
+</div>
+{% endblock %}

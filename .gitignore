@@ -7,3 +7,14 @@ venv/
 logs/
 data/
 .env
+
+# Personal PII / rollback assets (keep local; do not ship)
+personal/resumes/
+personal/templates/
+personal/text.txt
+personal/linkedin_agent_snapshot/__pycache__/
+personal/**/__pycache__/
+
+# Cursor IDE
+.cursor/
+personal/**/text.txt

@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Draft — {{ app_name }}{% endblock %}
+{% block content %}
+<p class="section-kicker">Application workspace</p>
+<h1>{{ draft.title }}</h1>
+<p class="muted">{{ draft.company }} · <span class="badge">{{ draft.source }}</span></p>
+{% if draft.duplicate_warning %}
+<div class="warn-box">{{ draft.duplicate_warning }}</div>
+{% endif %}
+<div class="panel">
+  <form method="post" action="/drafts/{{ draft.id }}/save">
+    <label>To</label>
+    <input name="to_email" value="{{ draft.to_email or '' }}" placeholder="hiring@company.com" />
+    <label>Subject</label>
+    <input name="subject" value="{{ draft.subject }}" required />
+    <label>Body</label>
+    <textarea name="body" required>{{ draft.body }}</textarea>
+    <p><button class="btn ghost" type="submit">Save edits</button></p>
+  </form>
+  {% if draft.apply_url %}
+  <p class="muted">Apply URL: <a href="{{ draft.apply_url }}" target="_blank" rel="noopener">{{ draft.apply_url }}</a></p>
+  {% endif %}
+  <div class="cta-row">
+    {% if email_conn and email_conn.send_enabled and draft.to_email %}
+    <form method="post" action="/drafts/{{ draft.id }}/approve">
+      <button class="btn primary" type="submit">Approve &amp; send</button>
+    </form>
+    {% elif draft.to_email %}
+    <a class="btn primary" href="/settings/email/connect">Connect Gmail to send</a>
+    {% else %}
+    <span class="badge warn">No email — open apply URL and mark Applied in tracker</span>
+    {% endif %}
+    <form method="post" action="/drafts/{{ draft.id }}/reject">
+      <button class="btn danger" type="submit">Reject</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

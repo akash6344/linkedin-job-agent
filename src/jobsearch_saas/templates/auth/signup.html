@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}Sign up — LetItApply{% endblock %}
+{% block content %}
+<div class="panel" style="max-width:520px;margin:1.5rem auto">
+  <p class="section-kicker">Get started</p>
+  <h1>Create your LetItApply account</h1>
+  <p class="muted">Separate consents — clear, purpose-specific, and revocable anytime.</p>
+  <form method="post" action="/signup">
+    <label>Full name</label>
+    <input name="full_name" required />
+    <label>Email</label>
+    <input type="email" name="email" required />
+    <label>Password (min 8)</label>
+    <input type="password" name="password" minlength="8" required />
+    {% for p in purposes %}
+    <label style="font-weight:500; margin-top:0.9rem">
+      <input type="checkbox" name="consent_{{ p.purpose }}" value="1"
+        {% if p.purpose == 'job_matching' %}required checked{% endif %} />
+      {{ p.label }} — {{ p.description }}
+    </label>
+    {% endfor %}
+    <p style="margin-top:1.2rem"><button class="btn primary" type="submit">Create account</button></p>
+  </form>
+  <p class="muted">Already have an account? <a href="/login">Sign in</a></p>
+</div>
+{% endblock %}

@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block title %}Settings — {{ app_name }}{% endblock %}
+{% block content %}
+<h1>Settings</h1>
+<div class="grid cols-2">
+  <div class="card">
+    <h2>Profile</h2>
+    <p>{{ bundle.user.full_name }} · {{ bundle.user.email }}</p>
+    <p class="muted">Skills: {{ bundle.profile.skills|join(', ') if bundle.profile and bundle.profile.skills else '—' }}</p>
+    <p><a href="/onboarding?step=1">Edit via onboarding</a></p>
+  </div>
+  <div class="card">
+    <h2>Email connection</h2>
+    {% if email_conn %}
+      <p class="badge good">{{ email_conn.email_address }}</p>
+      <p class="muted">Send: {{ 'yes' if email_conn.send_enabled else 'no' }} · Read: {{ 'yes' if email_conn.read_enabled else 'no' }}</p>
+      <form method="post" action="/settings/email/disconnect"><button class="btn danger" type="submit">Disconnect</button></form>
+    {% elif oauth_ready %}
+      <a class="btn" href="/settings/email/connect?send=1">Connect Gmail (OAuth)</a>
+    {% else %}
+      <div class="warn-box">Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET to enable OAuth.</div>
+    {% endif %}
+  </div>
+  <div class="card">
+    <h2>Companion devices</h2>
+    {% if companion %}
+      <p class="muted">Last sync: {{ companion.last_sync_at or 'never' }} · uploads left: {{ plan.companion_uploads_remaining if plan else '—' }}</p>
+    {% endif %}
+    {% if companion_devices %}
+      <table>
+        <thead><tr><th>Device</th><th>Last seen</th><th></th></tr></thead>
+        <tbody>
+        {% for d in companion_devices %}
+          <tr>
+            <td>{{ d.device_name or d.device_id }}{% if d.revoked_at %} <span class="badge warn">revoked</span>{% endif %}</td>
+            <td class="muted">{{ (d.last_seen_at or d.created_at or '')[:19] }}</td>
+            <td>
+              {% if not d.revoked_at %}
+              <form method="post" action="/settings/companion/revoke">
+                <input type="hidden" name="device_id" value="{{ d.device_id }}" />
+                <button class="btn ghost" type="submit">Revoke</button>
+              </form>
+              {% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <p class="muted">No companion devices yet. <a href="/download">Download Companion</a></p>
+    {% endif %}
+  </div>
+  <div class="card">
+    <h2>Consents</h2>
+    <ul>
+      {% for p in purposes %}
+      <li>{{ p.label }}: <strong>{{ 'granted' if consents.get(p.purpose) else 'not granted' }}</strong></li>
+      {% endfor %}
+    </ul>
+  </div>
+  <div class="card">
+    <h2>Privacy</h2>
+    <p><a class="btn ghost" href="/settings/export">Export my data (JSON)</a></p>
+    <form method="post" action="/settings/delete">
+      <label>Type DELETE to confirm account deletion</label>
+      <input name="confirm" placeholder="DELETE" />
+      <p><button class="btn danger" type="submit">Delete account</button></p>
+    </form>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}Refunds — {{ app_name }}{% endblock %}
+{% block content %}
+<article class="card">
+  <h1>Refund Policy</h1>
+  <p>Passes are digital, time-boxed services.</p>
+  <ul>
+    <li><strong>Within 48 hours of purchase</strong>, if you have not used more than 3 approved sends: full refund on request.</li>
+    <li><strong>After material use</strong> (more than 3 sends or &gt;20 matches consumed): refunds are discretionary for service defects only.</li>
+    <li>Beta grants and free tier have no cash value.</li>
+  </ul>
+  <p>Email {{ support_email }} with your payment ID. GST invoices are issued for paid passes when GST registration applies.</p>
+  <p class="muted">Obtain accounting advice before charging Indian customers across states; inter-state online supplies can require GST registration earlier than the general turnover threshold.</p>
+</article>
+{% endblock %}

@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block title %}Today — {{ app_name }}{% endblock %}
+{% block content %}
+<div class="page-title">
+  <div>
+    <p class="section-kicker">Dashboard</p>
+    <h1>Today</h1>
+  </div>
+  <div class="cta-row" style="margin:0">
+    <a class="btn ghost" href="/download">Companion</a>
+    <a class="btn primary" href="/matches">Review matches</a>
+  </div>
+</div>
+
+<div class="panel" style="margin-top:0.5rem">
+  <h2>Companion status</h2>
+  {% if companion and companion.last_sync_at %}
+    <p>
+      <span class="badge good">Last sync {{ companion.last_sync_at[:19] }}</span>
+      <span class="badge">{{ companion.last_sync_count }} posts</span>
+      {% if companion.linkedin_connected %}<span class="badge good">LinkedIn connected</span>{% else %}<span class="badge warn">LinkedIn not flagged</span>{% endif %}
+      {% if plan %}<span class="badge">{{ plan.companion_uploads_remaining }} uploads left this week</span>{% endif %}
+    </p>
+    {% if companion.last_error %}<p class="muted">Last note: {{ companion.last_error }}</p>{% endif %}
+    <p class="muted">Device: {{ companion.device_name or companion.device_id or '—' }}</p>
+  {% else %}
+    <p class="muted">No companion sync yet. Install the desktop app, connect LinkedIn on your laptop, then Start searching.</p>
+    <a class="btn primary" href="/download">Get Companion</a>
+  {% endif %}
+</div>
+
+<div class="grid cols-3 metric-strip">
+  <div class="card"><div class="muted">New matches</div><div class="stat">{{ stats.new_matches }}</div></div>
+  <div class="card"><div class="muted">Drafts awaiting approval</div><div class="stat">{{ stats.drafts_pending }}</div></div>
+  <div class="card"><div class="muted">Applied / replies</div><div class="stat">{{ stats.applied }} / {{ stats.replies }}</div></div>
+</div>
+
+<div class="grid cols-2">
+  <div class="panel">
+    <h2>High-match jobs</h2>
+    {% if not matches %}<p class="muted">No matches yet. <a href="/matches">Refresh matches</a> or <a href="/jobs/paste">paste a job</a>.</p>{% endif %}
+    {% for m in matches[:8] %}
+      <div style="margin:0.85rem 0; padding-bottom:0.85rem; border-bottom:1px solid var(--line)">
+        <strong>{{ m.title }}</strong> · {{ m.company }}
+        <div style="margin:0.35rem 0"><span class="badge good">{{ '%.0f'|format(m.fit_score) }}% fit</span> <span class="badge">{{ m.source }}</span></div>
+        <p class="muted" style="margin:0.35rem 0 0.6rem">{{ m.fit_reason }}</p>
+        <form method="post" action="/matches/{{ m.id }}/draft" style="display:inline">
+          <button class="btn primary" type="submit">Draft application</button>
+        </form>
+      </div>
+    {% endfor %}
+  </div>
+  <div class="panel">
+    <h2>Awaiting your approval</h2>
+    {% if not drafts %}<p class="muted">No pending drafts.</p>{% endif %}
+    {% for d in drafts %}
+      <div style="margin:0.7rem 0">
+        <a href="/drafts/{{ d.id }}"><strong>{{ d.subject }}</strong></a>
+        <div class="muted">{{ d.company }} · {{ d.to_email or 'link / form apply' }}</div>
+      </div>
+    {% endfor %}
+    <p style="margin-top:1.2rem"><a class="btn ghost" href="/tracker">Open tracker</a></p>
+  </div>
+</div>
+{% endblock %}

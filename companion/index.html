@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>LetItApply Companion</title>
+  <style>
+    @import url("https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Syne:wght@700;800&display=swap");
+    :root {
+      --ink: #0b1220;
+      --muted: #64748b;
+      --line: rgba(15, 23, 42, 0.1);
+      --accent: #2563eb;
+      --bg: #f4f7fb;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "DM Sans", sans-serif;
+      background:
+        radial-gradient(600px 300px at 10% -10%, rgba(37,99,235,0.14), transparent 55%),
+        var(--bg);
+      color: var(--ink);
+      min-height: 100vh;
+      padding: 1.4rem 1.25rem;
+    }
+    h1 {
+      font-family: "Syne", sans-serif;
+      font-size: 1.65rem;
+      letter-spacing: -0.04em;
+      margin: 0 0 0.35rem;
+    }
+    h1 span { color: var(--accent); }
+    .sub { color: var(--muted); font-size: 0.92rem; margin: 0 0 1.2rem; }
+    .card {
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 1rem 1.05rem;
+      margin-bottom: 0.85rem;
+    }
+    label { display: block; font-size: 0.8rem; font-weight: 600; margin: 0.45rem 0 0.25rem; }
+    input {
+      width: 100%;
+      padding: 0.65rem 0.7rem;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      font: inherit;
+    }
+    .btn {
+      display: block;
+      width: 100%;
+      border: 0;
+      border-radius: 999px;
+      padding: 0.75rem 1rem;
+      margin-top: 0.55rem;
+      font: inherit;
+      font-weight: 700;
+      cursor: pointer;
+      background: var(--ink);
+      color: #fff;
+    }
+    .btn.primary { background: linear-gradient(135deg, #2563eb, #1d4ed8); }
+    .btn.ghost { background: #fff; color: var(--ink); border: 1px solid var(--line); }
+    .btn:disabled { opacity: 0.5; cursor: wait; }
+    .status {
+      font-size: 0.88rem;
+      color: var(--muted);
+      min-height: 2.4em;
+      margin-top: 0.6rem;
+      white-space: pre-wrap;
+    }
+    .pill {
+      display: inline-block;
+      font-size: 0.72rem;
+      font-weight: 700;
+      padding: 0.2rem 0.5rem;
+      border-radius: 999px;
+      background: #eff6ff;
+      color: #1d4ed8;
+      margin-bottom: 0.6rem;
+    }
+    .pill.warn { background: #fff7ed; color: #9a3412; }
+    .pill.good { background: #ecfdf5; color: #0f766e; }
+  </style>
+</head>
+<body>
+  <h1>Let<span>It</span>Apply</h1>
+  <p class="sub">Companion runs on your laptop. LinkedIn stays on your device.</p>
+
+  <div class="card" id="auth-card">
+    <div class="pill" id="auth-pill">Not signed in</div>
+    <label>Email</label>
+    <input id="email" type="email" placeholder="you@email.com" />
+    <label>Password</label>
+    <input id="password" type="password" placeholder="LetItApply password" />
+    <button class="btn primary" id="btn-login">1. Sign in</button>
+  </div>
+
+  <div class="card">
+    <button class="btn" id="btn-linkedin">2. Connect LinkedIn</button>
+    <button class="btn primary" id="btn-search">3. Start searching</button>
+    <button class="btn ghost" id="btn-dash">4. Open dashboard</button>
+    <p class="status" id="status">Ready.</p>
+  </div>
+
+  <button class="btn ghost" id="btn-help" style="margin-top:0.4rem">Setup help</button>
+
+  <script>
+    const statusEl = document.getElementById("status");
+    const authPill = document.getElementById("auth-pill");
+    const setBusy = (busy) => {
+      ["btn-login","btn-linkedin","btn-search","btn-dash"].forEach((id) => {
+        document.getElementById(id).disabled = busy;
+      });
+    };
+    const show = (msg) => { statusEl.textContent = msg; };
+
+    async function refresh() {
+      const st = await window.companion.getState();
+      if (st.email) document.getElementById("email").value = st.email;
+      authPill.textContent = st.signedIn ? `Signed in · ${st.email}` : "Not signed in";
+      authPill.className = "pill " + (st.signedIn ? "good" : "warn");
+      if (st.lastMessage) show(st.lastMessage);
+    }
+
+    document.getElementById("btn-login").onclick = async () => {
+      setBusy(true);
+      show("Signing in…");
+      const email = document.getElementById("email").value.trim();
+      const password = document.getElementById("password").value;
+      const res = await window.companion.login(email, password);
+      setBusy(false);
+      show(res.ok ? `Signed in. Plan: ${res.plan || "ok"}` : (res.error || "Login failed"));
+      refresh();
+    };
+
+    document.getElementById("btn-linkedin").onclick = async () => {
+      setBusy(true);
+      show("Opening Chrome — log into LinkedIn, then return here…");
+      const res = await window.companion.connectLinkedIn();
+      setBusy(false);
+      show(res.ok ? "LinkedIn connected on this laptop." : (res.error || "Could not connect"));
+      refresh();
+    };
+
+    document.getElementById("btn-search").onclick = async () => {
+      setBusy(true);
+      show("Searching LinkedIn on your laptop… this can take a few minutes.");
+      const res = await window.companion.search();
+      setBusy(false);
+      if (res.ok) {
+        show(`Done. Uploaded ${res.accepted || 0} posts. Open the dashboard to approve applications.`);
+      } else {
+        show(res.error || res.detail || "Search failed");
+      }
+      refresh();
+    };
+
+    document.getElementById("btn-dash").onclick = () => window.companion.openDashboard();
+    document.getElementById("btn-help").onclick = () => window.companion.openHelp();
+    refresh();
+  </script>
+</body>
+</html>

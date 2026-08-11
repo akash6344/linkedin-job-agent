@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Sign in — LetItApply{% endblock %}
+{% block content %}
+<div class="panel" style="max-width:420px;margin:1.5rem auto">
+  <p class="section-kicker">Welcome back</p>
+  <h1>Sign in</h1>
+  <form method="post" action="/login">
+    <label>Email</label>
+    <input type="email" name="email" required />
+    <label>Password</label>
+    <input type="password" name="password" required />
+    <p style="margin-top:1.2rem"><button class="btn primary" type="submit">Sign in</button></p>
+  </form>
+  <p class="muted">New here? <a href="/signup">Create an account</a></p>
+</div>
+{% endblock %}

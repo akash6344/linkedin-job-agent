@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% block title %}Onboarding — {{ app_name }}{% endblock %}
+{% block content %}
+<p class="section-kicker">Onboarding</p>
+<h1>Setup in under 15 minutes</h1>
+<div class="steps">
+  <span class="{% if step=='1' %}on{% endif %}">1 Profile</span>
+  <span class="{% if step=='2' %}on{% endif %}">2 Resume</span>
+  <span class="{% if step=='3' %}on{% endif %}">3 Preferences</span>
+  <span class="{% if step=='4' %}on{% endif %}">4 Email + preview</span>
+</div>
+
+{% if step == '1' %}
+<div class="card">
+  <h2>Profile</h2>
+  <form method="post" action="/onboarding/profile">
+    <label>Full name</label>
+    <input name="full_name" value="{{ bundle.user.full_name }}" required />
+    <label>Phone</label>
+    <input name="phone" value="{{ bundle.user.phone }}" />
+    <label>LinkedIn URL</label>
+    <input name="linkedin_url" value="{{ bundle.user.linkedin_url }}" />
+    <label>GitHub URL</label>
+    <input name="github_url" value="{{ bundle.user.github_url }}" />
+    <label>Headline</label>
+    <input name="headline" value="{{ bundle.profile.headline }}" />
+    <label>Years of experience</label>
+    <input type="number" step="0.5" name="years_experience" value="{{ bundle.profile.years_experience }}" />
+    <label>Skills (comma-separated)</label>
+    <input name="skills" value="{{ bundle.profile.skills|join(', ') if bundle.profile.skills else '' }}" />
+    <label>Summary</label>
+    <textarea name="summary">{{ bundle.profile.summary }}</textarea>
+    <p><button class="btn" type="submit">Save & continue</button></p>
+  </form>
+</div>
+{% elif step == '2' %}
+<div class="card">
+  <h2>Upload resume (PDF)</h2>
+  <form method="post" action="/onboarding/resume" enctype="multipart/form-data">
+    <label>Label</label>
+    <input name="label" value="Primary" />
+    <label>File</label>
+    <input type="file" name="resume" accept=".pdf,.txt" required />
+    <p><button class="btn" type="submit">Upload & continue</button></p>
+  </form>
+  {% if bundle.resumes %}
+  <p class="muted">Already uploaded: {% for r in bundle.resumes %}{{ r.filename }}{% if not loop.last %}, {% endif %}{% endfor %}</p>
+  <p><a href="/onboarding?step=3">Skip to preferences →</a></p>
+  {% endif %}
+</div>
+{% elif step == '3' %}
+<div class="card">
+  <h2>Search preferences</h2>
+  <form method="post" action="/onboarding/prefs">
+    <label>Target roles (comma-separated)</label>
+    <input name="roles" value="{{ prefs.roles|join(', ') if prefs.roles else 'Software Engineer, Python Developer' }}" />
+    <label>Locations</label>
+    <input name="locations" value="{{ prefs.locations|join(', ') }}" />
+    <label>Max years experience required by job</label>
+    <input type="number" step="0.5" name="max_years_experience" value="{{ prefs.max_years_experience }}" />
+    <label>Daily application limit</label>
+    <input type="number" name="daily_application_limit" value="{{ prefs.daily_application_limit }}" />
+    <label>Exclusions (comma-separated)</label>
+    <input name="exclusions" value="{{ prefs.exclusions|join(', ') }}" />
+    <label>Preferred apply route</label>
+    <select name="preferred_apply_route">
+      <option value="email" {% if prefs.preferred_apply_route=='email' %}selected{% endif %}>Email</option>
+      <option value="form" {% if prefs.preferred_apply_route=='form' %}selected{% endif %}>Form / link</option>
+    </select>
+    <p class="muted">Auto-send stays off by default. You approve every email.</p>
+    <p><button class="btn" type="submit">Save & continue</button></p>
+  </form>
+</div>
+{% else %}
+<div class="card">
+  <h2>Connect Gmail (OAuth)</h2>
+  {% if email_conn %}
+    <p class="badge good">Connected: {{ email_conn.email_address }}</p>
+  {% elif oauth_ready %}
+    <p class="muted">We request send permission only when you enable sending. No app passwords.</p>
+    <a class="btn" href="/settings/email/connect?send=1">Connect Gmail</a>
+  {% else %}
+    <div class="warn-box">Google OAuth env vars not set yet — you can still preview matches and paste jobs. Configure GOOGLE_CLIENT_ID / SECRET before live sends.</div>
+  {% endif %}
+  <h2 style="margin-top:1.2rem">Run preview</h2>
+  <p class="muted">Pulls from permitted public job APIs, shows up to 10 matches and up to 3 drafts.</p>
+  <form method="post" action="/onboarding/preview">
+    <button class="btn" type="submit">Generate preview</button>
+  </form>
+</div>
+{% endif %}
+{% endblock %}

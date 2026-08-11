@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+{% block body_class %}is-marketing{% endblock %}
+{% block title %}LetItApply — Find roles. Approve. Apply.{% endblock %}
+{% block content %}
+
+<section class="hero-stage">
+  <div class="hero-inner">
+    <h1 class="hero-brand">Let<span>It</span>Apply</h1>
+    <p class="hero-copy">Get more interviews with applications you still control.</p>
+    <p class="hero-sub">Upload your CV, set the roles you want, and approve every email before it leaves your Gmail — built for India-first job searches.</p>
+    <div class="cta-row">
+      <a class="btn primary" href="/signup">Start for free</a>
+      <a class="btn ghost" href="/#how">See how it works</a>
+    </div>
+  </div>
+
+  <div class="hero-visual">
+    <div class="product-frame" aria-hidden="true">
+      <div class="product-chrome"><i></i><i></i><i></i></div>
+      <div class="product-screen">
+        <div class="row">
+          <div class="mock-card">
+            <div class="label">Today’s matches</div>
+            <div class="mock-job"><span>Python Developer · Bengaluru</span><span class="fit">92%</span></div>
+            <div class="mock-job"><span>Backend Engineer · Remote</span><span class="fit">88%</span></div>
+            <div class="mock-job"><span>AI Engineer · Hyderabad</span><span class="fit">81%</span></div>
+          </div>
+          <div class="mock-card">
+            <div class="label">Draft awaiting approval</div>
+            <div class="mock-line mid"></div>
+            <div class="mock-line"></div>
+            <div class="mock-line short"></div>
+            <div class="cta-row" style="margin-top:0.9rem">
+              <span class="btn primary" style="pointer-events:none;padding:0.45rem 0.9rem;font-size:0.82rem">Approve &amp; send</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section" id="how">
+  <p class="section-kicker">How LetItApply works</p>
+  <h2>Three steps. You stay in control.</h2>
+  <p class="lead">Inspired by products like LoopCV’s simple setup flow — profile, preferences, then daily applications — but every send waits for your approval.</p>
+  <div class="steps-flow">
+    <div class="step-item">
+      <h3>Create your profile</h3>
+      <p>Upload 1–3 resumes, set experience, skills, and the roles you actually want.</p>
+    </div>
+    <div class="step-item">
+      <h3>Install Companion</h3>
+      <p>Desktop app on your laptop searches LinkedIn with your login and syncs posts to LetItApply.</p>
+    </div>
+    <div class="step-item">
+      <h3>Approve, then apply</h3>
+      <p>Review matched jobs and polished drafts. Connect Gmail with OAuth and send only what you approve.</p>
+    </div>
+  </div>
+  <p class="cta-row"><a class="btn ghost" href="/download">Get the Companion</a></p>
+</section>
+
+<section class="section">
+  <p class="section-kicker">What you get</p>
+  <h2>Everything in one calm workspace</h2>
+  <div class="feature-rail">
+    <div class="feature-block">
+      <div>
+        <h3>Match feed with fit reasons</h3>
+        <p class="muted">See why a role fits — and what’s missing — before you spend time drafting.</p>
+      </div>
+      <div class="feature-visual">
+        <div class="mock-job"><span>Full-stack · Pune</span><span class="fit">86%</span></div>
+        <div class="mock-line mid"></div>
+        <div class="mock-line short"></div>
+        <p class="muted" style="margin:0.6rem 0 0;font-size:0.85rem">Skills overlap: Python, FastAPI · India / remote-friendly</p>
+      </div>
+    </div>
+    <div class="feature-block reverse">
+      <div>
+        <h3>Human-approved email sends</h3>
+        <p class="muted">Edit subject and body, attach the right resume, then click Approve. No app passwords — Google OAuth only.</p>
+      </div>
+      <div class="feature-visual">
+        <div class="label" style="font-size:0.72rem;font-weight:700;color:var(--muted);letter-spacing:0.06em;text-transform:uppercase">Application workspace</div>
+        <div class="mock-line"></div>
+        <div class="mock-line mid"></div>
+        <div class="mock-line short"></div>
+      </div>
+    </div>
+    <div class="feature-block">
+      <div>
+        <h3>Pipeline tracker</h3>
+        <p class="muted">Saved → Drafted → Applied → Replied → Interview → Offer. Follow every thread without a spreadsheet.</p>
+      </div>
+      <div class="feature-visual">
+        <div class="mock-job"><span>Applied</span><span class="badge good">12</span></div>
+        <div class="mock-job"><span>Replied</span><span class="badge">3</span></div>
+        <div class="mock-job"><span>Interview</span><span class="badge warn">1</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section" id="pricing">
+  <p class="section-kicker">Pricing</p>
+  <h2>Time-boxed passes for a real job search</h2>
+  <p class="lead">One-time passes — not endless auto-renew traps. Start free, upgrade when the workflow sticks.</p>
+  <div class="pricing-grid">
+    {% for p in plans %}
+    <div class="price-tile {% if p.plan_id == 'pro_90' %}featured{% endif %}">
+      <h3>{{ p.name }}</h3>
+      <div class="amount">{{ p.amount_display }}</div>
+      <p class="meta">
+        {% if p.days %}{{ p.days }} days · {% endif %}
+        {{ p.applications_per_month }} approved sends / month ·
+        {{ p.matches_per_week }} matches / week ·
+        {{ p.companion_uploads_per_week }} companion uploads / week
+      </p>
+      {% if p.plan_id == 'free' %}
+        <a class="btn ghost" href="/signup">Start free</a>
+      {% else %}
+        <a class="btn primary" href="/signup">Get started</a>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+</section>
+
+<section class="closing">
+  <h2>Automate the busywork. Keep the judgment.</h2>
+  <p>LetItApply finds and prepares. You decide what goes out — every single time.</p>
+  <a class="btn primary" href="/signup">Create your account</a>
+</section>
+
+{% endblock %}
