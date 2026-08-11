@@ -22,15 +22,49 @@ def _load_dotenv() -> None:
 
 _load_dotenv()
 
+ON_VERCEL = os.environ.get("VERCEL") == "1"
+
+
+def _default_base_url() -> str:
+    explicit = os.environ.get("SAAS_BASE_URL", "").strip()
+    if explicit:
+        return explicit.rstrip("/")
+    if ON_VERCEL:
+        host = (
+            os.environ.get("VERCEL_PROJECT_PRODUCTION_URL")
+            or os.environ.get("VERCEL_URL")
+            or ""
+        ).strip()
+        if host:
+            return f"https://{host}".rstrip("/")
+    return "http://127.0.0.1:8000"
+
+
+def _default_database_url() -> str:
+    explicit = os.environ.get("SAAS_DATABASE_URL", "").strip()
+    if explicit:
+        return explicit
+    # Serverless filesystem is read-only except /tmp (ephemeral per instance).
+    if ON_VERCEL:
+        return "sqlite:////tmp/letitapply/saas.db"
+    return f"sqlite:///{PROJECT_ROOT / 'data' / 'saas.db'}"
+
+
+def _default_upload_dir() -> Path:
+    explicit = os.environ.get("SAAS_UPLOAD_DIR", "").strip()
+    if explicit:
+        return Path(explicit)
+    if ON_VERCEL:
+        return Path("/tmp/letitapply/uploads")
+    return PROJECT_ROOT / "data" / "uploads"
+
+
 APP_NAME = os.environ.get("SAAS_APP_NAME", "LetItApply")
-APP_ENV = os.environ.get("SAAS_ENV", "development")
+APP_ENV = os.environ.get("SAAS_ENV", "production" if ON_VERCEL else "development")
 SECRET_KEY = os.environ.get("SAAS_SECRET_KEY", "dev-only-change-me")
-BASE_URL = os.environ.get("SAAS_BASE_URL", "http://127.0.0.1:8000")
-DATABASE_URL = os.environ.get(
-    "SAAS_DATABASE_URL",
-    f"sqlite:///{PROJECT_ROOT / 'data' / 'saas.db'}",
-)
-UPLOAD_DIR = Path(os.environ.get("SAAS_UPLOAD_DIR", str(PROJECT_ROOT / "data" / "uploads")))
+BASE_URL = _default_base_url()
+DATABASE_URL = _default_database_url()
+UPLOAD_DIR = _default_upload_dir()
 SESSION_COOKIE = "letitapply_session"
 SESSION_DAYS = int(os.environ.get("SAAS_SESSION_DAYS", "14"))
 

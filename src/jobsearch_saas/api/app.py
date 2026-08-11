@@ -77,8 +77,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 templates = Jinja2Templates(directory=str(TEMPLATE_DIR))
-STATIC_DIR.mkdir(parents=True, exist_ok=True)
-app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+try:
+    STATIC_DIR.mkdir(parents=True, exist_ok=True)
+except OSError:
+    # Read-only filesystem on some serverless hosts — package static/ is enough.
+    pass
+if STATIC_DIR.is_dir():
+    app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 
 class CompanionLoginBody(BaseModel):
@@ -122,7 +127,7 @@ def require_user(request: Request) -> dict[str, Any]:
 def render(request: Request, name: str, **ctx: Any) -> HTMLResponse:
     user = _user(request)
     plan = active_plan(user["id"]) if user else None
-    base = {
+    context = {
         "request": request,
         "app_name": APP_NAME,
         "user": user,
@@ -130,8 +135,9 @@ def render(request: Request, name: str, **ctx: Any) -> HTMLResponse:
         "support_email": SUPPORT_EMAIL,
         "flash": request.session.pop("flash", None),
     }
-    base.update(ctx)
-    return templates.TemplateResponse(name, base)
+    context.update(ctx)
+    # Starlette 0.37+ requires (request, name, context); older used (name, context).
+    return templates.TemplateResponse(request, name, context)
 
 
 def flash(request: Request, message: str) -> None:

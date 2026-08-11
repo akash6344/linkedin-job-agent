@@ -1,15 +1,24 @@
 [project]
 name = "linkedin-job-agent"
 version = "0.2.0"
-description = "LinkedIn personal job agent + ApplyDesk India SaaS job-search copilot"
+description = "LinkedIn personal job agent + LetItApply India SaaS job-search copilot"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-    "playwright>=1.40.0",
-    "ollama>=0.3.0",
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.30.0",
+    "jinja2>=3.1.0",
+    "python-multipart>=0.0.9",
+    "cryptography>=42.0.0",
+    "itsdangerous>=2.1.0",
+    "httpx>=0.27.0",
 ]
 
 [project.optional-dependencies]
+agent = [
+    "playwright>=1.40.0",
+    "ollama>=0.3.0",
+]
 saas = [
     "fastapi>=0.115.0",
     "uvicorn[standard]>=0.30.0",
@@ -17,6 +26,7 @@ saas = [
     "python-multipart>=0.0.9",
     "cryptography>=42.0.0",
     "itsdangerous>=2.1.0",
+    "httpx>=0.27.0",
 ]
 
 [project.scripts]
@@ -31,3 +41,6 @@ where = ["src"]
 
 [tool.setuptools.package-data]
 jobsearch_saas = ["templates/**/*.html", "static/*"]
+
+[tool.vercel]
+entrypoint = "app:app"

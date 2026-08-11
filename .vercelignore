@@ -1,0 +1,15 @@
+.venv
+venv
+.git
+.cursor
+.linkedin_browser
+logs
+data
+personal/resumes
+personal/templates
+personal/text.txt
+companion/node_modules
+**/__pycache__
+**/*.pyc
+.env
+*.egg-info

@@ -18,3 +18,5 @@ personal/**/__pycache__/
 # Cursor IDE
 .cursor/
 personal/**/text.txt
+.vercel
+.env*
