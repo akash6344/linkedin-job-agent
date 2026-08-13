@@ -1,0 +1,27 @@
+{% extends "admin/base.html" %}
+{% from "admin/_plan_tier.html" import plan_tier %}
+{% block title %}Users — Admin{% endblock %}
+{% block content %}
+<p class="section-kicker">Accounts</p>
+<h1>Users</h1>
+<p class="muted">👑 = Pro (₹249) · blue badge = Starter (₹199)</p>
+<div class="panel">
+  <table>
+    <thead>
+      <tr><th>Joined</th><th>Email</th><th>Name</th><th>Phone</th><th>Plan</th><th>Valid until</th></tr>
+    </thead>
+    <tbody>
+      {% for u in users %}
+      <tr class="{% if u.plan_id == 'pass_249' %}row-pro{% endif %}">
+        <td>{{ u.created_at[:10] }}</td>
+        <td>{{ u.email }}</td>
+        <td>{{ u.full_name or '—' }}</td>
+        <td>{{ u.phone or '—' }}</td>
+        <td>{{ plan_tier(u.plan_id or 'free') }}</td>
+        <td>{% if u.valid_until %}{{ u.valid_until[:10] }}{% else %}—{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

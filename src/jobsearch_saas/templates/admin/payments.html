@@ -1,0 +1,32 @@
+{% extends "admin/base.html" %}
+{% from "admin/_plan_tier.html" import plan_tier %}
+{% block title %}Payments — Admin{% endblock %}
+{% block content %}
+<p class="section-kicker">Billing</p>
+<h1>All QR payments</h1>
+<div class="panel">
+  <table>
+    <thead>
+      <tr>
+        <th>Status</th><th>Submitted</th><th>User</th><th>Name</th><th>Phone</th>
+        <th>Plan</th><th>Amount</th><th>Txn ID</th><th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for s in submissions %}
+      <tr class="{% if s.plan_id == 'pass_249' %}row-pro{% endif %}">
+        <td><span class="badge {% if s.status == 'approved' %}good{% elif s.status == 'pending' %}warn{% endif %}">{{ s.status }}</span></td>
+        <td>{{ s.created_at[:19] }}</td>
+        <td>{{ s.user_email }}</td>
+        <td>{{ s.payer_name }}</td>
+        <td>{{ s.phone }}</td>
+        <td>{{ plan_tier(s.plan_id) }}</td>
+        <td>₹{{ '%.0f'|format(s.amount_paise / 100) }}</td>
+        <td><code>{{ s.transaction_id }}</code></td>
+        <td><a class="btn" href="/admin/payments/{{ s.id }}">View</a></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

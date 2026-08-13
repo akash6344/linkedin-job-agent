@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% block title %}Profile — {{ app_name }}{% endblock %}
+{% block content %}
+<p class="section-kicker">Account</p>
+<h1>Your profile</h1>
+<div class="grid cols-2">
+  <div class="card">
+    <h2>Details</h2>
+    <p><strong>Name:</strong> {{ bundle.user.full_name or '—' }}</p>
+    <p><strong>Email:</strong> {{ bundle.user.email }}</p>
+    <p><strong>Phone:</strong> {{ bundle.user.phone or '—' }}</p>
+    <p><strong>Plan:</strong> {{ entitlement.name if entitlement.name is defined else entitlement.plan_id }}</p>
+    {% if entitlement.valid_until %}
+    <p><strong>Valid until:</strong> {{ entitlement.valid_until[:10] }}</p>
+    {% endif %}
+    <p style="margin-top:1rem"><a class="btn" href="/onboarding?step=1">Edit profile</a></p>
+  </div>
+  <div class="card">
+    <h2>Quick links</h2>
+    <p><a href="/dashboard">Dashboard</a></p>
+    <p><a href="/billing">Pricing &amp; payments</a></p>
+    <p><a href="/settings">Settings</a></p>
+  </div>
+</div>
+
+<div class="panel" style="margin-top:1.25rem">
+  <h2>Payment transactions</h2>
+  <p class="muted">All UPI payments you started. Status updates when admin approves or rejects.</p>
+  {% if transactions %}
+  <div class="table-scroll">
+    <table class="txn-table">
+      <thead>
+        <tr>
+          <th>Started</th>
+          <th>Plan</th>
+          <th>Amount</th>
+          <th>Transaction ID</th>
+          <th>Status</th>
+          <th>Updated</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for t in transactions %}
+        <tr>
+          <td>{{ t.initiated_at[:19].replace('T', ' ') }}</td>
+          <td>{{ t.plan_name }}</td>
+          <td>{{ t.amount_display }}</td>
+          <td><code class="txn-id">{{ t.transaction_id }}</code></td>
+          <td>
+            <span class="badge txn-status txn-{{ t.status }}">{{ t.status_label }}</span>
+            {% if t.admin_notes and t.status == 'rejected' %}
+            <p class="muted txn-note">{{ t.admin_notes }}</p>
+            {% elif t.admin_notes and t.status == 'approved' %}
+            <p class="muted txn-note">{{ t.admin_notes }}</p>
+            {% endif %}
+          </td>
+          <td>
+            {% if t.reviewed_at %}
+              {{ t.reviewed_at[:19].replace('T', ' ') }}
+            {% elif t.submitted_at %}
+              Submitted {{ t.submitted_at[:19].replace('T', ' ') }}
+            {% else %}
+              —
+            {% endif %}
+          </td>
+          <td>
+            {% if t.pay_url and t.status in ['awaiting_payment', 'pending'] %}
+            <a class="btn ghost" href="{{ t.pay_url }}">Continue</a>
+            {% else %}
+            —
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="muted">No payments yet. <a href="/billing">Choose a plan</a> to get started.</p>
+  {% endif %}
+</div>
+{% endblock %}

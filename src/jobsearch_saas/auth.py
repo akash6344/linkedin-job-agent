@@ -44,27 +44,59 @@ def create_user(*, email: str, password: str, full_name: str = "") -> dict[str, 
             """,
             (user_id, email_norm, _hash_password(password), full_name.strip(), now),
         )
-        conn.execute(
-            """
-            INSERT INTO profiles (user_id, updated_at) VALUES (?, ?)
-            """,
-            (user_id, now),
-        )
-        conn.execute(
-            """
-            INSERT INTO search_prefs (user_id, updated_at) VALUES (?, ?)
-            """,
-            (user_id, now),
-        )
-        conn.execute(
-            """
-            INSERT INTO entitlements (user_id, plan_id, updated_at, week_key, month_key)
-            VALUES (?, 'free', ?, ?, ?)
-            """,
-            (user_id, now, _week_key(), _month_key()),
-        )
+        _bootstrap_user_rows(conn, user_id, now)
         db.audit(conn, user_id=user_id, action="user.signup", entity_type="user", entity_id=user_id)
     return get_user(user_id)  # type: ignore[return-value]
+
+
+def create_user_from_google(*, email: str, full_name: str = "") -> dict[str, Any]:
+    user_id = str(uuid.uuid4())
+    now = db.utc_now()
+    email_norm = email.strip().lower()
+    password_hash = f"oauth:google:{secrets.token_urlsafe(32)}"
+    with db.connect() as conn:
+        conn.execute(
+            """
+            INSERT INTO users (id, email, password_hash, full_name, created_at)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (user_id, email_norm, password_hash, full_name.strip(), now),
+        )
+        _bootstrap_user_rows(conn, user_id, now)
+        db.audit(conn, user_id=user_id, action="user.signup_google", entity_type="user", entity_id=user_id)
+    return get_user(user_id)  # type: ignore[return-value]
+
+
+def _bootstrap_user_rows(conn: Any, user_id: str, now: str) -> None:
+    conn.execute(
+        "INSERT INTO profiles (user_id, updated_at) VALUES (?, ?)",
+        (user_id, now),
+    )
+    conn.execute(
+        "INSERT INTO search_prefs (user_id, updated_at) VALUES (?, ?)",
+        (user_id, now),
+    )
+    conn.execute(
+        """
+        INSERT INTO entitlements (user_id, plan_id, updated_at, week_key, month_key)
+        VALUES (?, 'free', ?, ?, ?)
+        """,
+        (user_id, now, _week_key(), _month_key()),
+    )
+
+
+def get_or_create_google_user(*, email: str, full_name: str = "") -> tuple[dict[str, Any], bool]:
+    user = get_user_by_email(email)
+    if user:
+        if full_name and not (user.get("full_name") or "").strip():
+            with db.connect() as conn:
+                conn.execute(
+                    "UPDATE users SET full_name = ? WHERE id = ?",
+                    (full_name.strip(), user["id"]),
+                )
+            user = get_user(user["id"])  # type: ignore[assignment]
+        return user, False
+    return create_user_from_google(email=email, full_name=full_name), True
 
 
 def get_user(user_id: str) -> dict[str, Any] | None:

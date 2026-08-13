@@ -1,0 +1,54 @@
+{% extends "admin/base.html" %}
+{% from "admin/_plan_tier.html" import plan_tier %}
+{% block title %}Payment review — Admin{% endblock %}
+{% block content %}
+<p class="section-kicker">Review</p>
+<h1>Payment submission</h1>
+
+<div class="panel">
+  <p><strong>Status:</strong> <span class="badge {% if sub.status == 'approved' %}good{% elif sub.status == 'pending' %}warn{% endif %}">{{ sub.status }}</span></p>
+  <p><strong>User:</strong> {{ sub.user_email }} ({{ sub.user_full_name or '—' }})</p>
+  <p><strong>Payer name:</strong> {{ sub.payer_name }}</p>
+  <p><strong>Phone:</strong> {{ sub.phone }}</p>
+  <p><strong>Plan:</strong> {{ plan_tier(sub.plan_id) }}</p>
+  <p><strong>Amount:</strong> ₹{{ '%.0f'|format(sub.amount_paise / 100) }} (GST ₹{{ '%.0f'|format(sub.gst_paise / 100) }})</p>
+  <p><strong>Transaction ID:</strong> <code>{{ sub.transaction_id }}</code></p>
+  <p><strong>Submitted:</strong> {{ sub.created_at[:19] }}</p>
+  {% if sub.reviewed_at %}
+  <p><strong>Reviewed:</strong> {{ sub.reviewed_at[:19] }} by {{ sub.reviewed_by or '—' }}</p>
+  {% endif %}
+  {% if sub.admin_notes %}
+  <p><strong>Admin notes:</strong> {{ sub.admin_notes }}</p>
+  {% endif %}
+</div>
+
+<div class="panel">
+  <h2>Payment screenshot</h2>
+  {% if screenshot_url %}
+  <img src="{{ screenshot_url }}" alt="Payment screenshot" style="max-width:100%;max-height:480px;border-radius:8px;border:1px solid var(--border)" />
+  <p class="muted"><a href="{{ screenshot_url }}" target="_blank">Open full image</a></p>
+  {% else %}
+  <p class="muted">Screenshot file not found on server.</p>
+  {% endif %}
+</div>
+
+{% if sub.status == 'pending' %}
+<div class="panel">
+  <h2>Actions</h2>
+  <form method="post" action="/admin/payments/{{ sub.id }}/approve" style="margin-bottom:1rem">
+    <label>Notes (optional)
+      <input type="text" name="notes" placeholder="Internal note" />
+    </label>
+    <button class="btn primary" type="submit">Approve &amp; activate plan</button>
+  </form>
+  <form method="post" action="/admin/payments/{{ sub.id }}/reject">
+    <label>Rejection reason (optional)
+      <input type="text" name="notes" placeholder="Reason shown to user if needed" />
+    </label>
+    <button class="btn secondary" type="submit">Reject</button>
+  </form>
+</div>
+{% endif %}
+
+<p><a href="/admin/payments">← All payments</a></p>
+{% endblock %}

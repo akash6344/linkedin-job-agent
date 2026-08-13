@@ -66,8 +66,11 @@ BASE_URL = _default_base_url()
 DATABASE_URL = _default_database_url()
 UPLOAD_DIR = _default_upload_dir()
 MONGO_URI = os.environ.get("MONGO_URI", "").strip()
-# Prefer Mongo whenever MONGO_URI is set (Vercel + local). Tests can force SQLite.
-FORCE_SQLITE = os.environ.get("SAAS_FORCE_SQLITE", "0") == "1"
+# Local dev defaults to SQLite — Mongo often fails on localhost SSL. Set SAAS_FORCE_SQLITE=0 to use Mongo.
+FORCE_SQLITE = os.environ.get(
+    "SAAS_FORCE_SQLITE",
+    "1" if os.environ.get("SAAS_ENV", "development" if not ON_VERCEL else "production") == "development" else "0",
+) == "1"
 
 
 def use_mongo() -> bool:
@@ -75,6 +78,7 @@ def use_mongo() -> bool:
 
 
 SESSION_COOKIE = "letitapply_session"
+WEB_SESSION_COOKIE = "letitapply_web"
 SESSION_DAYS = int(os.environ.get("SAAS_SESSION_DAYS", "14"))
 
 # Google OAuth (Gmail send) — never store app passwords for SaaS users
@@ -83,6 +87,22 @@ GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET", "")
 GOOGLE_REDIRECT_URI = os.environ.get(
     "GOOGLE_REDIRECT_URI",
     f"{BASE_URL}/settings/email/callback",
+)
+GOOGLE_ADMIN_REDIRECT_URI = os.environ.get(
+    "GOOGLE_ADMIN_REDIRECT_URI",
+    f"{BASE_URL}/admin/callback",
+)
+GOOGLE_AUTH_REDIRECT_URI = os.environ.get(
+    "GOOGLE_AUTH_REDIRECT_URI",
+    f"{BASE_URL}/auth/google/callback",
+)
+ADMIN_ALLOWED_EMAILS = frozenset(
+    e.strip().lower()
+    for e in os.environ.get(
+        "SAAS_ADMIN_EMAILS",
+        "bhargavp1809@gmail.com,uppalaakash2004@gmail.com",
+    ).split(",")
+    if e.strip()
 )
 GMAIL_SEND_SCOPE = "https://www.googleapis.com/auth/gmail.send"
 GMAIL_READONLY_SCOPE = "https://www.googleapis.com/auth/gmail.readonly"
@@ -93,7 +113,7 @@ RAZORPAY_KEY_ID = os.environ.get("RAZORPAY_KEY_ID", "")
 RAZORPAY_KEY_SECRET = os.environ.get("RAZORPAY_KEY_SECRET", "")
 RAZORPAY_WEBHOOK_SECRET = os.environ.get("RAZORPAY_WEBHOOK_SECRET", "")
 GST_RATE = float(os.environ.get("SAAS_GST_RATE", "0.18"))
-PRICES_INCLUDE_GST = os.environ.get("SAAS_PRICES_INCLUDE_GST", "0") == "1"
+PRICES_INCLUDE_GST = os.environ.get("SAAS_PRICES_INCLUDE_GST", "1") == "1"
 
 SUPPORT_EMAIL = os.environ.get("SAAS_SUPPORT_EMAIL", "support@letitapply.com")
 LEGAL_ENTITY = os.environ.get("SAAS_LEGAL_ENTITY", "LetItApply")
@@ -114,6 +134,7 @@ ALLOW_BETA_GRANT = os.environ.get("SAAS_ALLOW_BETA_GRANT", "0") == "1"
 PLANS: dict[str, dict] = {
     "free": {
         "name": "Free",
+        "tagline": "Try the workflow — self-serve only",
         "amount_inr": 0,
         "days": 0,
         "matches_per_week": FREE_MATCHES_PER_WEEK,
@@ -122,43 +143,56 @@ PLANS: dict[str, dict] = {
         "max_companion_devices": 1,
         "multi_resume": False,
         "followups": False,
+        "has_support": False,
         "priority_support": False,
+        "features": [
+            "Match feed & draft previews",
+            "Manual job paste",
+            "Companion sync (limited)",
+            "Community / docs only — no direct support",
+        ],
     },
-    "search_pass_30": {
-        "name": "Job Search Pass",
-        "amount_inr": 29900,  # paise
+    "pass_199": {
+        "name": "Starter",
+        "tagline": "Full search pass with email support",
+        "amount_inr": 19900,
         "days": 30,
-        "matches_per_week": 200,
-        "applications_per_month": 30,
-        "companion_uploads_per_week": 80,
+        "matches_per_week": 120,
+        "applications_per_month": None,
+        "companion_uploads_per_week": 60,
         "max_companion_devices": MAX_COMPANION_DEVICES,
         "multi_resume": False,
         "followups": False,
+        "has_support": True,
         "priority_support": False,
+        "features": [
+            "Match feed & job drafts",
+            "Companion sync for LinkedIn posts",
+            "30-day pass",
+            "Email support (48h response)",
+            "Unlimited approved sends",
+        ],
     },
-    "pro_30": {
-        "name": "Pro Search",
-        "amount_inr": 69900,
+    "pass_249": {
+        "name": "Pro",
+        "tagline": "Best value — priority support & unlimited usage",
+        "amount_inr": 24900,
         "days": 30,
-        "matches_per_week": 500,
-        "applications_per_month": 100,
-        "companion_uploads_per_week": 300,
+        "matches_per_week": None,
+        "applications_per_month": None,
+        "companion_uploads_per_week": 120,
         "max_companion_devices": MAX_COMPANION_DEVICES,
         "multi_resume": True,
         "followups": True,
+        "has_support": True,
         "priority_support": True,
-    },
-    "pro_90": {
-        "name": "90-day Pro Pass",
-        "amount_inr": 149900,
-        "days": 90,
-        "matches_per_week": 500,
-        "applications_per_month": 100,
-        "companion_uploads_per_week": 300,
-        "max_companion_devices": MAX_COMPANION_DEVICES,
-        "multi_resume": True,
-        "followups": True,
-        "priority_support": True,
+        "features": [
+            "Everything in Starter",
+            "Priority support (same day)",
+            "Unlimited approved sends",
+            "Unlimited matches / week",
+            "Multi-resume & follow-up reminders",
+        ],
     },
 }
 

@@ -13,7 +13,7 @@ from typing import Any, Callable
 
 from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, Field
@@ -22,14 +22,15 @@ from starlette.middleware.sessions import SessionMiddleware
 from jobsearch_saas import companion as companion_svc
 from jobsearch_saas import db
 from jobsearch_saas.auth import (
-    authenticate,
     create_session,
-    create_user,
     destroy_session,
+    get_or_create_google_user,
     record_consent,
     user_from_session,
 )
-from jobsearch_saas.billing import razorpay_billing
+from jobsearch_saas import google_sso
+from jobsearch_saas.billing import qr_payments, razorpay_billing
+from jobsearch_saas.admin import auth as admin_auth
 from jobsearch_saas.config import (
     ALLOW_BETA_GRANT,
     APP_NAME,
@@ -39,6 +40,7 @@ from jobsearch_saas.config import (
     SECRET_KEY,
     SESSION_COOKIE,
     SUPPORT_EMAIL,
+    WEB_SESSION_COOKIE,
 )
 from jobsearch_saas.drafts import (
     approve_and_send,
@@ -68,7 +70,7 @@ TEMPLATE_DIR = PACKAGE_DIR / "templates"
 STATIC_DIR = PACKAGE_DIR / "static"
 
 app = FastAPI(title=APP_NAME, version="0.2.0")
-app.add_middleware(SessionMiddleware, secret_key=SECRET_KEY, session_cookie=SESSION_COOKIE)
+app.add_middleware(SessionMiddleware, secret_key=SECRET_KEY, session_cookie=WEB_SESSION_COOKIE)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -114,7 +116,10 @@ def require_companion_user(authorization: str | None = Header(default=None)) -> 
 
 
 def _user(request: Request) -> dict[str, Any] | None:
-    return user_from_session(request.cookies.get(SESSION_COOKIE))
+    try:
+        return user_from_session(request.cookies.get(SESSION_COOKIE))
+    except Exception:
+        return None
 
 
 def require_user(request: Request) -> dict[str, Any]:
@@ -131,6 +136,7 @@ def render(request: Request, name: str, **ctx: Any) -> HTMLResponse:
         "request": request,
         "app_name": APP_NAME,
         "user": user,
+        "user_initials": _user_initials(user),
         "plan": plan,
         "support_email": SUPPORT_EMAIL,
         "flash": request.session.pop("flash", None),
@@ -140,8 +146,40 @@ def render(request: Request, name: str, **ctx: Any) -> HTMLResponse:
     return templates.TemplateResponse(request, name, context)
 
 
+def render_admin(request: Request, name: str, **ctx: Any) -> HTMLResponse:
+    context = {
+        "request": request,
+        "app_name": APP_NAME,
+        "admin_email": admin_auth.admin_from_session(request),
+        "flash": request.session.pop("admin_flash", None),
+    }
+    context.update(ctx)
+    return templates.TemplateResponse(request, name, context)
+
+
+def admin_flash(request: Request, message: str) -> None:
+    request.session["admin_flash"] = message
+
+
+def require_admin(request: Request) -> str:
+    email = admin_auth.admin_from_session(request)
+    if not email:
+        raise HTTPException(status_code=303, headers={"Location": "/admin/login"})
+    return email
+
+
 def flash(request: Request, message: str) -> None:
     request.session["flash"] = message
+
+
+def _user_initials(user: dict[str, Any] | None) -> str:
+    if not user:
+        return "?"
+    name = (user.get("full_name") or user.get("email") or "?").strip()
+    parts = [p for p in name.replace("@", " ").split() if p]
+    if len(parts) >= 2:
+        return (parts[0][0] + parts[-1][0]).upper()
+    return (parts[0][:2] if parts else "?").upper()
 
 
 # ── Public / legal ─────────────────────────────────────────────
@@ -158,8 +196,6 @@ def _startup() -> None:
 
 @app.get("/", response_class=HTMLResponse)
 def home(request: Request) -> HTMLResponse:
-    if _user(request):
-        return RedirectResponse("/dashboard", status_code=303)
     return render(request, "landing.html", plans=razorpay_billing.catalog_for_display())
 
 
@@ -188,53 +224,112 @@ def sources_disclosure(request: Request) -> HTMLResponse:
 
 @app.get("/signup", response_class=HTMLResponse)
 def signup_form(request: Request) -> HTMLResponse:
-    return render(request, "auth/signup.html", purposes=privacy.CONSENT_PURPOSES)
+    if _user(request):
+        plan = request.query_params.get("plan", "")
+        if plan in PLANS and plan != "free":
+            return RedirectResponse(f"/billing/checkout?plan={plan}", status_code=303)
+        return RedirectResponse("/", status_code=303)
+    return render(
+        request,
+        "auth/signup.html",
+        purposes=privacy.CONSENT_PURPOSES,
+        oauth_ready=google_sso.sso_configured(),
+        selected_plan=request.query_params.get("plan", ""),
+    )
 
 
 @app.post("/signup")
-def signup(
+def signup_start(
     request: Request,
-    email: str = Form(...),
-    password: str = Form(...),
-    full_name: str = Form(""),
     consent_job_matching: str | None = Form(None),
     consent_email_sending: str | None = Form(None),
     consent_product_updates: str | None = Form(None),
+    plan_id: str = Form(""),
 ) -> RedirectResponse:
-    if len(password) < 8:
-        flash(request, "Password must be at least 8 characters.")
+    if not google_sso.sso_configured():
+        flash(request, "Google sign-in is not configured.")
         return RedirectResponse("/signup", status_code=303)
     if not consent_job_matching:
         flash(request, "Job matching consent is required to use the product.")
         return RedirectResponse("/signup", status_code=303)
-    try:
-        user = create_user(email=email, password=password, full_name=full_name)
-    except Exception:
-        flash(request, "Could not create account — email may already be registered.")
-        return RedirectResponse("/signup", status_code=303)
-    record_consent(user["id"], purpose="job_matching", granted=True)
-    record_consent(user["id"], purpose="email_sending", granted=bool(consent_email_sending))
-    record_consent(user["id"], purpose="product_updates", granted=bool(consent_product_updates))
-    token = create_session(user["id"])
-    resp = RedirectResponse("/onboarding", status_code=303)
-    resp.set_cookie(SESSION_COOKIE, token, httponly=True, samesite="lax")
-    return resp
+    plan = plan_id if plan_id in PLANS and plan_id != "free" else ""
+    state = google_sso.make_state(
+        mode="signup",
+        consents={
+            "job_matching": True,
+            "email_sending": bool(consent_email_sending),
+            "product_updates": bool(consent_product_updates),
+        },
+        plan_id=plan,
+    )
+    return RedirectResponse(google_sso.build_auth_url(state=state), status_code=303)
 
 
 @app.get("/login", response_class=HTMLResponse)
 def login_form(request: Request) -> HTMLResponse:
-    return render(request, "auth/login.html")
+    if _user(request):
+        return RedirectResponse("/", status_code=303)
+    return render(
+        request,
+        "auth/login.html",
+        oauth_ready=google_sso.sso_configured(),
+        selected_plan=request.query_params.get("plan", ""),
+    )
 
 
-@app.post("/login")
-def login(request: Request, email: str = Form(...), password: str = Form(...)) -> RedirectResponse:
-    user = authenticate(email, password)
-    if not user:
-        flash(request, "Invalid email or password.")
+@app.get("/auth/google")
+def auth_google_start(request: Request, plan: str = "") -> RedirectResponse:
+    if not google_sso.sso_configured():
+        flash(request, "Google sign-in is not configured.")
         return RedirectResponse("/login", status_code=303)
+    plan_id = plan if plan in PLANS and plan != "free" else ""
+    state = google_sso.make_state(mode="login", plan_id=plan_id)
+    return RedirectResponse(google_sso.build_auth_url(state=state), status_code=303)
+
+
+@app.get("/auth/google/callback")
+def auth_google_callback(request: Request, code: str = "", state: str = "") -> RedirectResponse:
+    if not code:
+        flash(request, "Google sign-in was cancelled or failed.")
+        return RedirectResponse("/login", status_code=303)
+    try:
+        state_data = google_sso.parse_state(state)
+    except ValueError:
+        flash(request, "Google sign-in expired — please try again.")
+        return RedirectResponse("/login", status_code=303)
+    try:
+        profile = google_sso.profile_from_code(code)
+        user, is_new = get_or_create_google_user(
+            email=profile["email"],
+            full_name=profile["full_name"],
+        )
+    except Exception as exc:
+        msg = str(exc) or "Google sign-in failed."
+        if "ServerSelectionTimeout" in msg or "MongoDB" in msg:
+            msg = "Database connection failed. For local dev, set SAAS_FORCE_SQLITE=1 in .env"
+        flash(request, msg)
+        return RedirectResponse("/login", status_code=303)
+
+    consents = state_data.get("consents") or {}
+    if is_new:
+        record_consent(user["id"], purpose="job_matching", granted=True)
+        record_consent(user["id"], purpose="email_sending", granted=bool(consents.get("email_sending")))
+        record_consent(user["id"], purpose="product_updates", granted=bool(consents.get("product_updates")))
     token = create_session(user["id"])
-    resp = RedirectResponse("/dashboard", status_code=303)
-    resp.set_cookie(SESSION_COOKIE, token, httponly=True, samesite="lax")
+    pending_plan = (state_data.get("plan_id") or "").strip()
+    if pending_plan in PLANS and pending_plan != "free":
+        try:
+            order = qr_payments.start_checkout(user["id"], pending_plan)
+            dest = f"/billing/pay/{order['payment_id']}"
+        except Exception:
+            dest = "/billing"
+    elif is_new:
+        dest = "/onboarding"
+    else:
+        dest = "/"
+    flash(request, "Signed in with Google.")
+    resp = RedirectResponse(dest, status_code=303)
+    resp.set_cookie(SESSION_COOKIE, token, httponly=True, samesite="lax", max_age=60 * 60 * 24 * 14)
     return resp
 
 
@@ -244,6 +339,17 @@ def logout(request: Request) -> RedirectResponse:
     resp = RedirectResponse("/", status_code=303)
     resp.delete_cookie(SESSION_COOKIE)
     return resp
+
+
+@app.get("/profile", response_class=HTMLResponse)
+def profile_page(request: Request, user: dict = Depends(require_user)) -> HTMLResponse:
+    return render(
+        request,
+        "dashboard/profile.html",
+        bundle=get_profile_bundle(user["id"]),
+        entitlement=active_plan(user["id"]),
+        transactions=qr_payments.list_user_transactions(user["id"]),
+    )
 
 
 # ── Onboarding ─────────────────────────────────────────────────
@@ -607,14 +713,98 @@ def billing_page(request: Request) -> HTMLResponse:
     )
 
 
-@app.post("/billing/checkout")
-def billing_checkout(request: Request, user: dict = Depends(require_user), plan_id: str = Form(...)) -> HTMLResponse:
+@app.get("/billing/checkout")
+def billing_checkout_get(
+    request: Request, plan: str = "", user: dict = Depends(require_user)
+) -> RedirectResponse:
+    if plan not in PLANS or plan == "free":
+        flash(request, "Choose a valid plan.")
+        return RedirectResponse("/billing", status_code=303)
     try:
-        order = razorpay_billing.create_order(user["id"], plan_id)
+        order = qr_payments.start_checkout(user["id"], plan)
     except Exception as exc:
         flash(request, str(exc))
         return RedirectResponse("/billing", status_code=303)
-    return render(request, "billing/checkout.html", order=order, plan=PLANS[plan_id])
+    return RedirectResponse(f"/billing/pay/{order['payment_id']}", status_code=303)
+
+
+@app.post("/billing/checkout")
+def billing_checkout(request: Request, user: dict = Depends(require_user), plan_id: str = Form(...)) -> HTMLResponse:
+    try:
+        order = qr_payments.start_checkout(user["id"], plan_id)
+    except Exception as exc:
+        flash(request, str(exc))
+        return RedirectResponse("/billing", status_code=303)
+    payment = qr_payments.get_checkout(user["id"], order["payment_id"])
+    return render(
+        request,
+        "billing/qr_payment.html",
+        order=order,
+        plan=PLANS[plan_id],
+        payment=payment,
+    )
+
+
+@app.post("/billing/pay/{payment_id}/submit")
+async def billing_qr_submit(
+    request: Request,
+    payment_id: str,
+    user: dict = Depends(require_user),
+    payer_name: str = Form(...),
+    phone: str = Form(...),
+    transaction_id: str = Form(...),
+    screenshot: UploadFile = File(...),
+) -> RedirectResponse:
+    payment = qr_payments.get_checkout(user["id"], payment_id)
+    if not payment:
+        flash(request, "Payment session not found.")
+        return RedirectResponse("/billing", status_code=303)
+    content = await screenshot.read()
+    if not content:
+        flash(request, "Please upload a payment screenshot.")
+        return RedirectResponse(f"/billing/pay/{payment_id}", status_code=303)
+    try:
+        path = qr_payments.save_screenshot(
+            user["id"], payment_id, screenshot.filename or "screenshot.jpg", content
+        )
+        qr_payments.submit_payment(
+            user["id"],
+            payment_id,
+            payer_name=payer_name,
+            phone=phone,
+            transaction_id=transaction_id,
+            screenshot_path=path,
+        )
+        flash(request, "Payment proof submitted. We will verify and activate your pass shortly.")
+    except qr_payments.DuplicateTransactionError:
+        flash(request, "This transaction ID was already used. Check the ID or contact support.")
+    except Exception as exc:
+        flash(request, str(exc))
+    return RedirectResponse(f"/billing/pay/{payment_id}", status_code=303)
+
+
+@app.get("/billing/pay/{payment_id}", response_class=HTMLResponse)
+def billing_qr_page(request: Request, payment_id: str, user: dict = Depends(require_user)) -> HTMLResponse:
+    payment = qr_payments.get_checkout(user["id"], payment_id)
+    if not payment:
+        flash(request, "Payment session not found.")
+        return RedirectResponse("/billing", status_code=303)
+    plan_id = payment["plan_id"]
+    breakdown = razorpay_billing.plan_price_breakdown(plan_id)
+    order = {
+        "payment_id": payment_id,
+        "plan_id": plan_id,
+        "plan_name": PLANS[plan_id]["name"],
+        "amount": payment["amount_paise"],
+        "breakdown": breakdown,
+    }
+    return render(
+        request,
+        "billing/qr_payment.html",
+        order=order,
+        plan=PLANS[plan_id],
+        payment=payment,
+    )
 
 
 @app.post("/billing/verify")
@@ -660,6 +850,133 @@ def billing_beta_grant(request: Request, user: dict = Depends(require_user)) -> 
     grant_beta_pass(user["id"], days=30)
     flash(request, "Beta Pro pass granted for 30 days.")
     return RedirectResponse("/billing", status_code=303)
+
+
+# ── Admin panel ────────────────────────────────────────────────
+
+
+@app.get("/admin", response_class=HTMLResponse)
+def admin_home(request: Request) -> HTMLResponse:
+    email = admin_auth.admin_from_session(request)
+    if not email:
+        return RedirectResponse("/admin/login", status_code=303)
+    return render_admin(
+        request,
+        "admin/dashboard.html",
+        stats=qr_payments.revenue_stats(),
+        pending=qr_payments.list_submissions(status="pending"),
+    )
+
+
+@app.get("/admin/login", response_class=HTMLResponse)
+def admin_login_form(request: Request) -> HTMLResponse:
+    if admin_auth.admin_from_session(request):
+        return RedirectResponse("/admin", status_code=303)
+    return render_admin(request, "admin/login.html", oauth_ready=admin_auth.admin_oauth_configured())
+
+
+@app.get("/admin/login/google")
+def admin_login_google(request: Request) -> RedirectResponse:
+    if not admin_auth.admin_oauth_configured():
+        admin_flash(request, "Google OAuth is not configured.")
+        return RedirectResponse("/admin/login", status_code=303)
+    state = secrets.token_urlsafe(16)
+    request.session["admin_oauth_state"] = state
+    url = admin_auth.build_admin_auth_url(state=state)
+    return RedirectResponse(url, status_code=303)
+
+
+@app.get("/admin/callback")
+def admin_oauth_callback(request: Request, code: str = "", state: str = "") -> RedirectResponse:
+    if not code or state != request.session.get("admin_oauth_state"):
+        admin_flash(request, "OAuth state mismatch.")
+        return RedirectResponse("/admin/login", status_code=303)
+    try:
+        admin_auth.login_admin(request, code=code)
+    except PermissionError as exc:
+        admin_flash(request, str(exc))
+        return RedirectResponse("/admin/login", status_code=303)
+    except Exception:
+        admin_flash(request, "Google sign-in failed.")
+        return RedirectResponse("/admin/login", status_code=303)
+    admin_flash(request, "Signed in.")
+    return RedirectResponse("/admin", status_code=303)
+
+
+@app.post("/admin/logout")
+def admin_logout(request: Request) -> RedirectResponse:
+    admin_auth.logout_admin(request)
+    return RedirectResponse("/admin/login", status_code=303)
+
+
+@app.get("/admin/payments", response_class=HTMLResponse)
+def admin_payments_list(request: Request, admin_email: str = Depends(require_admin)) -> HTMLResponse:
+    return render_admin(
+        request,
+        "admin/payments.html",
+        submissions=qr_payments.list_submissions(),
+    )
+
+
+@app.get("/admin/payments/{submission_id}", response_class=HTMLResponse)
+def admin_payment_detail(
+    request: Request, submission_id: str, admin_email: str = Depends(require_admin)
+) -> HTMLResponse:
+    sub = qr_payments.get_submission(submission_id)
+    if not sub:
+        raise HTTPException(404)
+    return render_admin(
+        request,
+        "admin/payment_detail.html",
+        sub=sub,
+        screenshot_url=f"/admin/payments/{submission_id}/screenshot",
+    )
+
+
+@app.get("/admin/payments/{submission_id}/screenshot")
+def admin_payment_screenshot(
+    submission_id: str, admin_email: str = Depends(require_admin)
+) -> FileResponse:
+    path = qr_payments.screenshot_file(submission_id)
+    if not path:
+        raise HTTPException(404)
+    media = "application/pdf" if path.suffix.lower() == ".pdf" else "image/jpeg"
+    return FileResponse(path, media_type=media)
+
+
+@app.post("/admin/payments/{submission_id}/approve")
+def admin_payment_approve(
+    request: Request,
+    submission_id: str,
+    admin_email: str = Depends(require_admin),
+    notes: str = Form(""),
+) -> RedirectResponse:
+    try:
+        qr_payments.approve_submission(submission_id, admin_email=admin_email, notes=notes)
+        admin_flash(request, "Payment approved and plan activated.")
+    except Exception as exc:
+        admin_flash(request, str(exc))
+    return RedirectResponse(f"/admin/payments/{submission_id}", status_code=303)
+
+
+@app.post("/admin/payments/{submission_id}/reject")
+def admin_payment_reject(
+    request: Request,
+    submission_id: str,
+    admin_email: str = Depends(require_admin),
+    notes: str = Form(""),
+) -> RedirectResponse:
+    try:
+        qr_payments.reject_submission(submission_id, admin_email=admin_email, notes=notes)
+        admin_flash(request, "Payment rejected.")
+    except Exception as exc:
+        admin_flash(request, str(exc))
+    return RedirectResponse(f"/admin/payments/{submission_id}", status_code=303)
+
+
+@app.get("/admin/users", response_class=HTMLResponse)
+def admin_users_list(request: Request, admin_email: str = Depends(require_admin)) -> HTMLResponse:
+    return render_admin(request, "admin/users.html", users=qr_payments.list_users())
 
 
 # ── Health ─────────────────────────────────────────────────────

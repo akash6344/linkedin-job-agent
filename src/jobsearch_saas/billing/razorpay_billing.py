@@ -220,14 +220,6 @@ def catalog_for_display() -> list[dict[str, Any]]:
     items = []
     for plan_id, plan in PLANS.items():
         if plan_id == "free":
-            items.append(
-                {
-                    "plan_id": plan_id,
-                    **plan,
-                    "amount_display": "₹0",
-                    "breakdown": plan_price_breakdown(plan_id),
-                }
-            )
             continue
         b = plan_price_breakdown(plan_id)
         items.append(

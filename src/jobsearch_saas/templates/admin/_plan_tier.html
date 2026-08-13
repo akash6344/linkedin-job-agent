@@ -1,0 +1,13 @@
+{% macro plan_tier(plan_id) %}
+  {% if plan_id == 'pass_249' %}
+    <span class="plan-tier pro" title="Pro — ₹249 purchaser">
+      <span class="tier-crown" aria-hidden="true">👑</span> Pro
+    </span>
+  {% elif plan_id == 'pass_199' %}
+    <span class="plan-tier starter" title="Starter — ₹199 purchaser">Starter</span>
+  {% elif plan_id == 'free' %}
+    <span class="plan-tier free muted">Free</span>
+  {% else %}
+    <span class="plan-tier muted">{{ plan_id or '—' }}</span>
+  {% endif %}
+{% endmacro %}
