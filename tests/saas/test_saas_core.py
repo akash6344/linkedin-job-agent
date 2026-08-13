@@ -81,13 +81,14 @@ class TestAuthBillingPrivacy(SaasTestCase):
 
         grant_beta_pass(user["id"], days=30)
         plan = active_plan(user["id"])
-        self.assertEqual(plan["plan_id"], "pro_30")
-        self.assertEqual(plan["applications_per_month"], 100)
+        self.assertEqual(plan["plan_id"], "pass_249")
+        self.assertTrue(plan.get("applications_unlimited"))
 
-        breakdown = plan_price_breakdown("search_pass_30")
+        breakdown = plan_price_breakdown("pass_199")
         self.assertGreater(breakdown["total_paise"], breakdown["base_paise"])
+        self.assertEqual(breakdown["total_paise"], 19900)
 
-        order = create_order(user["id"], "search_pass_30")
+        order = create_order(user["id"], "pass_199")
         self.assertTrue(order["dev_mode"])
         result = verify_and_activate(
             user_id=user["id"],
@@ -96,7 +97,7 @@ class TestAuthBillingPrivacy(SaasTestCase):
             razorpay_payment_id="pay_test",
             razorpay_signature="dev_bypass",
         )
-        self.assertEqual(result["entitlement"]["plan_id"], "search_pass_30")
+        self.assertEqual(result["entitlement"]["plan_id"], "pass_199")
 
         exported = export_user_data(user["id"])
         self.assertEqual(exported["user"]["email"], "beta@example.com")

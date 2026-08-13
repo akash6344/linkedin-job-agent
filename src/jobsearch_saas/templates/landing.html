@@ -9,7 +9,7 @@
     <p class="hero-copy">Get more interviews with applications you still control.</p>
     <p class="hero-sub">Upload your CV, set the roles you want, and approve every email before it leaves your Gmail — built for India-first job searches.</p>
     <div class="cta-row">
-      <a class="btn primary" href="/signup">Start for free</a>
+      <a class="btn primary" href="/signup">Continue with Google</a>
       <a class="btn ghost" href="/#how">See how it works</a>
     </div>
   </div>
@@ -105,24 +105,21 @@
 
 <section class="section" id="pricing">
   <p class="section-kicker">Pricing</p>
-  <h2>Time-boxed passes for a real job search</h2>
-  <p class="lead">One-time passes — not endless auto-renew traps. Start free, upgrade when the workflow sticks.</p>
-  <div class="pricing-grid">
+  <h2>Two passes — both with support</h2>
+  <p class="lead">₹199 Starter or ₹249 Pro for a 30-day pass. One-time UPI payment, no subscriptions.</p>
+  <div class="pricing-grid pricing-grid-2">
     {% for p in plans %}
-    <div class="price-tile {% if p.plan_id == 'pro_90' %}featured{% endif %}">
+    <div class="price-tile {% if p.plan_id == 'pass_249' %}featured{% endif %}">
+      {% if p.plan_id == 'pass_249' %}<span class="plan-badge">Most popular</span>{% endif %}
       <h3>{{ p.name }}</h3>
+      <p class="plan-tagline">{{ p.tagline }}</p>
       <div class="amount">{{ p.amount_display }}</div>
-      <p class="meta">
-        {% if p.days %}{{ p.days }} days · {% endif %}
-        {{ p.applications_per_month }} approved sends / month ·
-        {{ p.matches_per_week }} matches / week ·
-        {{ p.companion_uploads_per_week }} companion uploads / week
-      </p>
-      {% if p.plan_id == 'free' %}
-        <a class="btn ghost" href="/signup">Start free</a>
-      {% else %}
-        <a class="btn primary" href="/signup">Get started</a>
-      {% endif %}
+      <ul class="plan-features">
+        {% for f in p.features[:5] %}
+        <li>{{ f }}</li>
+        {% endfor %}
+      </ul>
+      <a class="btn {% if p.plan_id == 'pass_249' %}primary{% else %}secondary{% endif %}" href="/signup?plan={{ p.plan_id }}">Get {{ p.name }} — {{ p.amount_display }}</a>
     </div>
     {% endfor %}
   </div>
@@ -131,7 +128,7 @@
 <section class="closing">
   <h2>Automate the busywork. Keep the judgment.</h2>
   <p>LetItApply finds and prepares. You decide what goes out — every single time.</p>
-  <a class="btn primary" href="/signup">Create your account</a>
+  <a class="btn primary" href="/signup">Continue with Google</a>
 </section>
 
 {% endblock %}

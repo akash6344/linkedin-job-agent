@@ -65,6 +65,12 @@ def _rollover(conn: Any, ent: dict[str, Any]) -> None:
             )
 
 
+def _quota_remaining(cap: int | None, used: int) -> int | None:
+    if cap is None:
+        return None
+    return max(0, cap - used)
+
+
 def active_plan(user_id: str) -> dict[str, Any]:
     ent = get_entitlement(user_id)
     plan = dict(PLANS.get(ent["plan_id"], PLANS["free"]))
@@ -73,10 +79,12 @@ def active_plan(user_id: str) -> dict[str, Any]:
     plan["applications_used_month"] = ent["applications_used_month"]
     plan["matches_used_week"] = ent["matches_used_week"]
     plan["companion_uploads_used_week"] = ent.get("companion_uploads_used_week") or 0
-    plan["applications_remaining"] = max(
-        0, plan["applications_per_month"] - ent["applications_used_month"]
+    plan["applications_unlimited"] = plan.get("applications_per_month") is None
+    plan["matches_unlimited"] = plan.get("matches_per_week") is None
+    plan["applications_remaining"] = _quota_remaining(
+        plan.get("applications_per_month"), ent["applications_used_month"]
     )
-    plan["matches_remaining"] = max(0, plan["matches_per_week"] - ent["matches_used_week"])
+    plan["matches_remaining"] = _quota_remaining(plan.get("matches_per_week"), ent["matches_used_week"])
     cap = int(plan.get("companion_uploads_per_week") or 0)
     used = int(plan["companion_uploads_used_week"])
     plan["companion_uploads_remaining"] = max(0, cap - used)
@@ -85,14 +93,18 @@ def active_plan(user_id: str) -> dict[str, Any]:
 
 def can_show_match(user_id: str) -> tuple[bool, str]:
     plan = active_plan(user_id)
-    if plan["matches_remaining"] <= 0:
+    if plan.get("matches_unlimited"):
+        return True, ""
+    if (plan.get("matches_remaining") or 0) <= 0:
         return False, "Weekly match quota reached. Upgrade your pass."
     return True, ""
 
 
 def can_create_draft(user_id: str) -> tuple[bool, str]:
     plan = active_plan(user_id)
-    if plan["applications_remaining"] <= 0:
+    if plan.get("applications_unlimited"):
+        return True, ""
+    if (plan.get("applications_remaining") or 0) <= 0:
         return False, "Monthly application/draft quota reached. Upgrade or wait for reset."
     return True, ""
 
@@ -175,7 +187,7 @@ def grant_beta_pass(user_id: str, days: int = 30) -> dict[str, Any]:
         conn.execute(
             """
             UPDATE entitlements
-            SET plan_id = 'pro_30', valid_until = ?, updated_at = ?
+            SET plan_id = 'pass_249', valid_until = ?, updated_at = ?
             WHERE user_id = ?
             """,
             (valid_until, db.utc_now(), user_id),

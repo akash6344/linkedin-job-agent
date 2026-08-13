@@ -237,6 +237,24 @@ CREATE TABLE IF NOT EXISTS job_queue (
     completed_at TEXT,
     last_error TEXT NOT NULL DEFAULT ''
 );
+
+CREATE TABLE IF NOT EXISTS qr_payment_submissions (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id),
+    payment_id TEXT NOT NULL REFERENCES payments(id),
+    plan_id TEXT NOT NULL,
+    payer_name TEXT NOT NULL,
+    phone TEXT NOT NULL,
+    transaction_id TEXT NOT NULL UNIQUE,
+    screenshot_path TEXT NOT NULL,
+    amount_paise INTEGER NOT NULL,
+    gst_paise INTEGER NOT NULL DEFAULT 0,
+    status TEXT NOT NULL DEFAULT 'pending',
+    admin_notes TEXT NOT NULL DEFAULT '',
+    reviewed_by TEXT,
+    reviewed_at TEXT,
+    created_at TEXT NOT NULL
+);
 """
 
 
@@ -249,6 +267,29 @@ def _migrate(conn: sqlite3.Connection) -> None:
     if "companion_uploads_used_week" not in cols:
         conn.execute(
             "ALTER TABLE entitlements ADD COLUMN companion_uploads_used_week INTEGER NOT NULL DEFAULT 0"
+        )
+    tables = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()}
+    if "qr_payment_submissions" not in tables:
+        conn.executescript(
+            """
+            CREATE TABLE IF NOT EXISTS qr_payment_submissions (
+                id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL REFERENCES users(id),
+                payment_id TEXT NOT NULL REFERENCES payments(id),
+                plan_id TEXT NOT NULL,
+                payer_name TEXT NOT NULL,
+                phone TEXT NOT NULL,
+                transaction_id TEXT NOT NULL UNIQUE,
+                screenshot_path TEXT NOT NULL,
+                amount_paise INTEGER NOT NULL,
+                gst_paise INTEGER NOT NULL DEFAULT 0,
+                status TEXT NOT NULL DEFAULT 'pending',
+                admin_notes TEXT NOT NULL DEFAULT '',
+                reviewed_by TEXT,
+                reviewed_at TEXT,
+                created_at TEXT NOT NULL
+            );
+            """
         )
 
 

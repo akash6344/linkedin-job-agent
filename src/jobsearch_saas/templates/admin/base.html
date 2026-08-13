@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{% block title %}Admin — LetItApply{% endblock %}</title>
+  <link rel="stylesheet" href="/static/app.css" />
+  <style>
+    .plan-tier {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      font-weight: 600;
+      font-size: 0.88rem;
+      padding: 0.2rem 0.55rem;
+      border-radius: 999px;
+      white-space: nowrap;
+    }
+    .plan-tier.starter {
+      background: #eff6ff;
+      color: #1d4ed8;
+      border: 1px solid rgba(37, 99, 235, 0.25);
+    }
+    .plan-tier.pro {
+      background: linear-gradient(135deg, #fef3c7, #fde68a);
+      color: #92400e;
+      border: 1px solid rgba(217, 119, 6, 0.35);
+      box-shadow: 0 1px 0 rgba(217, 119, 6, 0.12);
+    }
+    .plan-tier .tier-crown {
+      font-size: 1rem;
+      line-height: 1;
+      filter: drop-shadow(0 1px 1px rgba(0,0,0,0.15));
+    }
+    .plan-tier.free, .plan-tier.muted {
+      background: #f1f5f9;
+      color: #64748b;
+      font-weight: 500;
+    }
+    tr.row-pro td:first-child {
+      box-shadow: inset 3px 0 0 #f59e0b;
+    }
+  </style>
+</head>
+<body class="admin-body">
+  <nav class="nav">
+    <a class="brand" href="/admin">Let<span>It</span>Apply Admin</a>
+    <div class="links">
+      {% if admin_email %}
+        <span class="badge">{{ admin_email }}</span>
+        <a href="/admin">Dashboard</a>
+        <a href="/admin/payments">Payments</a>
+        <a href="/admin/users">Users</a>
+        <form method="post" action="/admin/logout" style="display:inline">
+          <button class="btn ghost" type="submit">Log out</button>
+        </form>
+      {% endif %}
+    </div>
+  </nav>
+  <main class="wrap">
+    {% if flash %}<div class="flash">{{ flash }}</div>{% endif %}
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>

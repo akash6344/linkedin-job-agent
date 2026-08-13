@@ -14,20 +14,30 @@
         <a href="/dashboard">Today</a>
         <a href="/matches">Matches</a>
         <a href="/tracker">Tracker</a>
-        <a href="/download">Companion</a>
         <a href="/billing">Pricing</a>
-        <a href="/settings">Settings</a>
-        {% if plan %}<span class="badge good">{{ plan.name if plan.name is defined else plan.plan_id }} · {{ plan.applications_remaining }} sends · {{ plan.companion_uploads_remaining }} syncs</span>{% endif %}
-        <form method="post" action="/logout" style="display:inline">
-          <button class="btn ghost" type="submit">Log out</button>
-        </form>
+        <details class="profile-menu">
+          <summary class="profile-trigger" aria-label="Profile menu">
+            <span class="profile-avatar">{{ user_initials }}</span>
+            <span class="profile-name">{{ user.full_name or user.email.split('@')[0] }}</span>
+          </summary>
+          <div class="profile-dropdown">
+            <p class="profile-dropdown-email">{{ user.email }}</p>
+            {% if plan %}<p class="profile-dropdown-plan">{{ plan.name if plan.name is defined else plan.plan_id }}</p>{% endif %}
+            <a href="/profile">Profile</a>
+            <a href="/settings">Settings</a>
+            <a href="/download">Companion</a>
+            <form method="post" action="/logout">
+              <button class="btn ghost" type="submit">Log out</button>
+            </form>
+          </div>
+        </details>
       {% else %}
         <a href="/#how">How it works</a>
         <a href="/download">Companion</a>
         <a href="/billing">Pricing</a>
         <a href="/legal/sources">Sources</a>
         <a href="/login">Sign in</a>
-        <a class="btn primary" href="/signup">Get started</a>
+        <a class="btn primary" href="/signup">Continue with Google</a>
       {% endif %}
     </div>
   </nav>

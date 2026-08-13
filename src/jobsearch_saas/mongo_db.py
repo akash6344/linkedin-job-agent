@@ -39,6 +39,7 @@ TABLES = (
     "applications",
     "audit_log",
     "job_queue",
+    "qr_payment_submissions",
 )
 
 AUTO_ID_TABLES = {"consents", "audit_log", "job_queue"}
@@ -196,6 +197,8 @@ def ensure_indexes(uri: str) -> None:
     database["job_queue"].create_index("idempotency_key", unique=True, sparse=True)
     database["payments"].create_index("id", unique=True)
     database["resumes"].create_index("id", unique=True)
+    database["qr_payment_submissions"].create_index("id", unique=True)
+    database["qr_payment_submissions"].create_index("transaction_id", unique=True)
     _INITIALIZED = True
 
 

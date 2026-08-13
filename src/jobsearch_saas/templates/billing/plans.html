@@ -2,45 +2,52 @@
 {% block title %}Pricing — LetItApply{% endblock %}
 {% block content %}
 <p class="section-kicker">Pricing</p>
-<h1>Job-search passes</h1>
-{% if entitlement %}
-<p class="muted">Current plan: <strong>{{ entitlement.plan_id }}</strong>
+<h1>Choose your pass</h1>
+<p class="lead">Two plans with direct support. One-time UPI payment — no subscriptions.</p>
+
+{% if entitlement and entitlement.plan_id != 'free' %}
+<p class="muted">Current plan: <strong>{{ entitlement.name if entitlement.name is defined else entitlement.plan_id }}</strong>
   {% if entitlement.valid_until %}· valid until {{ entitlement.valid_until[:10] }}{% endif %}
-  · {{ entitlement.applications_remaining }} sends left this month
+  · {% if entitlement.applications_unlimited %}∞{% else %}{{ entitlement.applications_remaining }}{% endif %} sends left this month
 </p>
-{% else %}
+{% elif not user %}
 <p class="muted"><a href="/signup">Create an account</a> to buy a pass.</p>
 {% endif %}
-{% if not razorpay_ready %}
-<div class="warn-box">Razorpay keys not set — checkout works in <strong>dev mode</strong> (signature <code>dev_bypass</code>). Set RAZORPAY_KEY_ID / SECRET for production.</div>
-{% endif %}
-<div class="pricing-grid">
+
+<div class="pricing-grid pricing-grid-2">
   {% for p in plans %}
-  <div class="price-tile {% if p.plan_id == 'pro_90' %}featured{% endif %}">
+  <div class="price-tile {% if p.plan_id == 'pass_249' %}featured{% endif %}">
+    {% if p.plan_id == 'pass_249' %}<span class="plan-badge">Most popular</span>{% endif %}
+    {% if p.has_support and p.plan_id != 'pass_249' %}<span class="plan-badge support-badge">With support</span>{% endif %}
     <h2>{{ p.name }}</h2>
+    <p class="plan-tagline">{{ p.tagline }}</p>
     <div class="amount">{{ p.amount_display }}</div>
-    <p class="meta">
-      {% if p.days %}{{ p.days }}-day pass · {% endif %}
-      {{ p.applications_per_month }} approved applications/month ·
-      {{ p.matches_per_week }} matches/week ·
-      {{ p.companion_uploads_per_week }} companion uploads/week
-    </p>
-    {% if p.breakdown and p.breakdown.gst_paise %}
-    <p class="muted" style="font-size:0.85rem">Base {{ p.base_display }} + GST {{ p.gst_display }}</p>
-    {% endif %}
-    {% if p.plan_id != 'free' %}
-      {% if user %}
+    <p class="muted price-note">All-inclusive · 30 days · pay via UPI</p>
+    <ul class="plan-features">
+      {% for f in p.features %}
+      <li>{{ f }}</li>
+      {% endfor %}
+    </ul>
+    {% if user %}
       <form method="post" action="/billing/checkout">
         <input type="hidden" name="plan_id" value="{{ p.plan_id }}" />
-        <button class="btn primary" type="submit">Buy pass</button>
+        <button class="btn {% if p.plan_id == 'pass_249' %}primary{% else %}secondary{% endif %}" type="submit">
+          Continue — {{ p.amount_display }}
+        </button>
       </form>
-      {% else %}
-      <a class="btn primary" href="/signup">Sign up to buy</a>
-      {% endif %}
+    {% else %}
+      <a class="btn {% if p.plan_id == 'pass_249' %}primary{% else %}secondary{% endif %}" href="/signup?plan={{ p.plan_id }}">
+          Continue — {{ p.amount_display }}
+      </a>
     {% endif %}
   </div>
   {% endfor %}
 </div>
+
+<p class="muted" style="margin-top:1.5rem;text-align:center;font-size:0.9rem">
+  Questions? Both plans include direct email support at {{ support_email }}.
+</p>
+
 {% if user and allow_beta_grant %}
 <form method="post" action="/billing/beta-grant" style="margin:1.2rem 0">
   <button class="btn secondary" type="submit">Grant beta Pro (30 days, no charge)</button>

@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}Pay via UPI — {{ app_name }}{% endblock %}
+{% block content %}
+<div class="card" style="max-width:640px;margin:0 auto">
+  <h1>Complete payment</h1>
+  <p><strong>{{ order.plan_name }}</strong></p>
+  <p class="stat">₹{{ '%.0f'|format(order.amount / 100) }}</p>
+  <p class="muted">
+    Base ₹{{ '%.0f'|format(order.breakdown.base_paise / 100) }}
+    + GST ₹{{ '%.0f'|format(order.breakdown.gst_paise / 100) }}
+    · {{ plan.days }} days · {% if plan.applications_unlimited %}unlimited{% else %}{{ plan.applications_per_month }}{% endif %} applications/month
+  </p>
+
+  {% if payment.submission and payment.submission.status == 'pending' %}
+  <div class="warn-box">
+    Payment proof submitted on {{ payment.submission.created_at[:19] }}.
+    Transaction ID: <strong>{{ payment.submission.transaction_id }}</strong>.
+    We will activate your pass after admin verification (usually within a few hours).
+  </div>
+  {% elif payment.submission and payment.submission.status == 'approved' %}
+  <div class="flash" style="background:#ecfdf5;border-color:#6ee7b7">
+    Payment approved. Your pass is active.
+    <a href="/dashboard">Go to dashboard</a>
+  </div>
+  {% elif payment.submission and payment.submission.status == 'rejected' %}
+  <div class="warn-box">
+    Previous submission was rejected{% if payment.submission.admin_notes %}: {{ payment.submission.admin_notes }}{% endif %}.
+    You can submit again below.
+  </div>
+  {% else %}
+  <div class="panel" style="text-align:center">
+    <p class="section-kicker">Step 1</p>
+    <h2>Scan &amp; pay with PhonePe / any UPI app</h2>
+    <img src="/static/payment_qr.jpeg" alt="UPI QR code for payment" style="max-width:280px;width:100%;border-radius:12px;border:1px solid var(--border)" />
+    <p class="muted" style="margin-top:0.8rem">Pay exactly <strong>₹{{ '%.0f'|format(order.amount / 100) }}</strong> to this QR, then fill the form below.</p>
+  </div>
+
+  <div class="panel">
+    <p class="section-kicker">Step 2</p>
+    <h2>Submit payment proof</h2>
+    <form method="post" action="/billing/pay/{{ order.payment_id }}/submit" enctype="multipart/form-data">
+      <label>Full name (as on UPI)
+        <input type="text" name="payer_name" required value="{{ user.full_name or '' }}" />
+      </label>
+      <label>Phone number
+        <input type="tel" name="phone" required pattern="[0-9+\-\s]{10,15}" value="{{ user.phone or '' }}" placeholder="10-digit mobile" />
+      </label>
+      <label>UPI transaction ID / reference number
+        <input type="text" name="transaction_id" required minlength="4" placeholder="e.g. T12345678901234" autocomplete="off" />
+      </label>
+      <label>Payment screenshot
+        <input type="file" name="screenshot" accept="image/*,.pdf" required />
+      </label>
+      <p class="muted" style="font-size:0.85rem">Upload a clear screenshot showing amount, date, and transaction ID. Each transaction ID can only be used once.</p>
+      <button class="btn primary" type="submit">Submit for verification</button>
+    </form>
+  </div>
+  {% endif %}
+
+  <p style="margin-top:1rem"><a href="/billing">← Back to plans</a></p>
+</div>
+{% endblock %}
