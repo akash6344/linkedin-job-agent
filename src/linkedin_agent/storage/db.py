@@ -51,6 +51,9 @@ def init_db() -> None:
             );
             """
         )
+        cols = {r[1] for r in conn.execute("PRAGMA table_info(posts)").fetchall()}
+        if "company_url" not in cols:
+            conn.execute("ALTER TABLE posts ADD COLUMN company_url TEXT")
         conn.commit()
     finally:
         conn.close()
@@ -103,8 +106,8 @@ def save_post(record: dict[str, Any]) -> None:
             INSERT OR REPLACE INTO posts (
                 url, role_tag, keyword, author, post_text, found_at,
                 apply_method, status, company, job_title, apply_email,
-                google_form_url, notes
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                google_form_url, notes, company_url
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 record["url"],
@@ -120,6 +123,7 @@ def save_post(record: dict[str, Any]) -> None:
                 record.get("apply_email"),
                 record.get("google_form_url"),
                 record.get("notes"),
+                record.get("company_url"),
             ),
         )
 

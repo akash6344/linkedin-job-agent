@@ -5,6 +5,7 @@ from typing import Any
 
 from linkedin_agent.apply.email_sender import draft_email, send_application_email
 from linkedin_agent.config import DRY_RUN, SEARCH_ROLES
+from linkedin_agent.links import enrich_company_url
 from linkedin_agent.llm.analyzer import analyze_post, is_valid_apply_email
 from linkedin_agent.llm.experience import (
     is_internship_role,
@@ -179,13 +180,16 @@ async def run_pipeline() -> RunSummary:
             apply_email = ""
         form_url = (analysis.get("google_form_url") or "").strip()
         resume_key = _pick_resume(role, analysis)
+        company_name = analysis.get("company") or ""
+        company_url = enrich_company_url(post, company=company_name)
 
         base_record = {
             **post,
-            "company": analysis.get("company"),
+            "company": company_name,
             "job_title": analysis.get("job_title"),
             "apply_email": apply_email or None,
             "google_form_url": form_url or None,
+            "company_url": company_url or None,
         }
 
         if apply_email:

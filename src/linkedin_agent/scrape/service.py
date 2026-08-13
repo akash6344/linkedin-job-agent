@@ -35,7 +35,8 @@ _SORT_CONFIG: dict[SortMode, dict[str, Any]] = {
     },
 }
 
-# LinkedIn content search often hides /feed/update/ links — extract from result cards + text
+# LinkedIn content search often hides /feed/update/ links — extract from result cards + text.
+# Top match results frequently omit classic chameleon/result selectors; "Feed post" text fallback covers that.
 EXTRACT_POSTS_JS = """() => {
     const items = [];
     const seen = new Set();
@@ -44,55 +45,65 @@ EXTRACT_POSTS_JS = """() => {
         return text.includes('Skip to search')
             || text.includes('Get hired for')
             || text.includes('Try Premium for')
+            || text.includes('Skip to main content')
             || text.startsWith('Home\\nMy Network');
     }
 
-    function pickAuthor(text, el) {
-        const fromEl = el.querySelector(
-            '.update-components-actor__title, .entity-result__title-text, a[href*="/in/"] span[aria-hidden="true"]'
-        );
-        if (fromEl?.innerText?.trim()) return fromEl.innerText.trim();
+    function looksLikePost(text) {
+        return text.includes('Feed post')
+            || /\\b(hiring|hire|opening|vacancy|apply|walk-?in|job|recruit)\\b/i.test(text);
+    }
 
+    function pickAuthor(text, el) {
+        if (el) {
+            const fromEl = el.querySelector(
+                '.update-components-actor__title, .entity-result__title-text, a[href*="/in/"] span[aria-hidden="true"], span[dir="ltr"]'
+            );
+            if (fromEl?.innerText?.trim()) return fromEl.innerText.trim().split('\\n')[0].trim();
+        }
         const m = text.match(/^Feed post\\s*\\n?([^\\n•]+)/i)
-            || text.match(/^([^\\n•]{2,60})\\s*•\\s*(1st|2nd|3rd|\\+|Verified)/i);
+            || text.match(/^([^\\n•]{2,80})\\s*•\\s*(1st|2nd|3rd|\\+|Verified|Following)/i);
         return m ? m[1].trim() : '';
     }
 
     function pickUrl(el, text) {
-        for (const link of el.querySelectorAll('a[href]')) {
-            const href = (link.href || '').split('?')[0];
-            if (href.includes('/feed/update/') || href.includes('/posts/') || href.includes('activity-')) {
-                return href;
+        if (el) {
+            for (const link of el.querySelectorAll('a[href]')) {
+                const href = (link.href || '').split('?')[0];
+                if (href.includes('/feed/update/') || href.includes('/posts/') || href.includes('activity-')) {
+                    return href;
+                }
+            }
+            const urnEl = el.closest('[data-urn], [data-chameleon-result-urn]')
+                || el.querySelector('[data-urn], [data-chameleon-result-urn]')
+                || el;
+            const urn = urnEl.getAttribute?.('data-urn')
+                || urnEl.getAttribute?.('data-chameleon-result-urn')
+                || '';
+            if (urn.includes('activity') || urn.includes('ugcPost')) {
+                const id = urn.split(':').pop();
+                return `https://www.linkedin.com/feed/update/urn:li:activity:${id}/`;
+            }
+            const profile = el.querySelector('a[href*="/in/"]');
+            if (profile?.href) {
+                return profile.href.split('?')[0] + '#post';
             }
         }
-        const urnEl = el.closest('[data-urn]') || el.querySelector('[data-urn]') || el;
-        const urn = urnEl.getAttribute?.('data-urn') || '';
-        if (urn.includes('activity') || urn.includes('ugcPost')) {
-            const id = urn.split(':').pop();
-            return `https://www.linkedin.com/feed/update/urn:li:activity:${id}/`;
-        }
-        const profile = el.querySelector('a[href*="/in/"]');
-        if (profile?.href) {
-            return profile.href.split('?')[0] + '#post';
+        const urnInText = (text || '').match(/urn:li:(?:activity|ugcPost):(\\d+)/);
+        if (urnInText) {
+            return `https://www.linkedin.com/feed/update/urn:li:activity:${urnInText[1]}/`;
         }
         return '';
     }
 
-    function addFromElement(el) {
-        const text = (el.innerText || '').trim();
-        if (text.length < 80 || isNavBlob(text)) return;
-
-        const url = pickUrl(el, text);
-        const key = url || text.slice(0, 200);
-        if (seen.has(key)) return;
-        seen.add(key);
-
+    function collectImages(el) {
         const imageUrls = [];
+        if (!el) return imageUrls;
         const seenImg = new Set();
         for (const img of el.querySelectorAll('img')) {
             const src = (img.currentSrc || img.src || '').trim();
             if (!src || src.startsWith('data:')) continue;
-            if (!/media\.licdn\.com|dms\/image|licdn\.com\/dms/i.test(src)) continue;
+            if (!/media\\.licdn\\.com|dms\\/image|licdn\\.com\\/dms/i.test(src)) continue;
             if (/ghost|emoji|presence|profile-displayphoto|company-logo|shrink_/i.test(src)) continue;
             const key = src.split('?')[0];
             if (seenImg.has(key)) continue;
@@ -100,32 +111,65 @@ EXTRACT_POSTS_JS = """() => {
             imageUrls.push(src);
             if (imageUrls.length >= 5) break;
         }
+        return imageUrls;
+    }
 
+    function pickCompanyUrl(el, text) {
+        if (el) {
+            for (const link of el.querySelectorAll('a[href*="/company/"]')) {
+                const href = (link.href || '').split('?')[0];
+                if (/linkedin\\.com\\/company\\//i.test(href)) {
+                    return href.replace(/\\/$/, '');
+                }
+            }
+        }
+        const m = (text || '').match(/https?:\\/\\/(?:www\\.)?linkedin\\.com\\/company\\/[A-Za-z0-9\\-_%]+\\/?/i);
+        return m ? m[0].replace(/\\/$/, '') : '';
+    }
+
+    function addItem(text, el) {
+        const clean = (text || '').trim();
+        if (clean.length < 80 || isNavBlob(clean) || !looksLikePost(clean)) return;
+        const url = pickUrl(el, clean);
+        const author = pickAuthor(clean, el);
+        const company_url = pickCompanyUrl(el, clean);
+        const key = url || `${author}|${clean.slice(0, 220)}`;
+        if (seen.has(key)) return;
+        seen.add(key);
         items.push({
             url,
-            author: pickAuthor(text, el),
-            post_text: text.slice(0, 8000),
-            image_urls: imageUrls,
+            author,
+            post_text: clean.slice(0, 8000),
+            image_urls: collectImages(el),
+            company_url,
         });
+    }
+
+    function addFromElement(el) {
+        addItem(el.innerText || '', el);
     }
 
     const selectors = [
         '[data-chameleon-result-urn]',
         'li.reusable-search__result-container',
         '.feed-shared-update-v2',
+        '.update-components-actor',
         'div[data-urn*="urn:li:activity"]',
         'div[data-urn*="urn:li:ugcPost"]',
+        'div[data-view-name*="feed"]',
+        'div[data-view-name*="search"]',
+        'main ul > li',
         'main li',
         'main div[data-urn]',
+        'div.scaffold-finite-scroll__content > div',
+        'div.search-results-container li',
     ];
 
     for (const sel of selectors) {
         document.querySelectorAll(sel).forEach(el => {
             const text = (el.innerText || '').trim();
-            if (text.length < 80) return;
-            const looksLikePost = text.includes('Feed post')
-                || /\\b(hiring|hire|opening|vacancy|apply|walk-?in|job)\\b/i.test(text);
-            if (looksLikePost || sel.includes('chameleon') || sel.includes('reusable-search')) {
+            if (text.length < 80 || text.length > 20000) return;
+            if (looksLikePost(text) || sel.includes('chameleon') || sel.includes('reusable-search') || sel.includes('feed-shared')) {
                 addFromElement(el);
             }
         });
@@ -134,15 +178,29 @@ EXTRACT_POSTS_JS = """() => {
     for (const link of document.querySelectorAll(
         'a[href*="/feed/update/"], a[href*="/posts/"], a[href*="activity-"]'
     )) {
-        let box = link.closest('[data-chameleon-result-urn], li, div[data-urn]');
+        let box = link.closest('[data-chameleon-result-urn], li, div[data-urn], article, div[role="article"], div[data-view-name]');
         if (!box) {
             let p = link.parentElement;
-            for (let i = 0; i < 10 && p; i++) {
+            for (let i = 0; i < 12 && p; i++) {
                 if ((p.innerText || '').length > 100) { box = p; break; }
                 p = p.parentElement;
             }
         }
         if (box) addFromElement(box);
+    }
+
+    // Fallback: LinkedIn Top match often keeps post text in the tree without classic card selectors.
+    if (items.length === 0) {
+        const root = document.querySelector('main') || document.body;
+        const raw = root?.innerText || '';
+        const chunks = raw.split(/(?=Feed post\\b)/i).filter(c => /Feed post/i.test(c));
+        for (const chunk of chunks) {
+            let body = chunk.trim();
+            // Drop trailing chrome from next UI blocks
+            body = body.split(/\\n(?:Promoted|About\\b|Accessibility|LinkedIn Corporation|Messaging)/)[0].trim();
+            if (body.length < 80) continue;
+            addItem(body, null);
+        }
     }
 
     return items;
@@ -205,33 +263,75 @@ async def _wait_for_results(page: Page) -> None:
         await page.wait_for_timeout(5000)
 
 
+async def _dismiss_open_filter_panels(page: Page) -> None:
+    """Close date/sort dropdowns that block scrolling/extraction (e.g. Past 24 hours open)."""
+    try:
+        show = page.locator('button:has-text("Show results")').first
+        if await show.count() > 0 and await show.is_visible():
+            await show.click()
+            await page.wait_for_timeout(1500)
+            return
+    except Exception:
+        pass
+    try:
+        await page.keyboard.press("Escape")
+        await page.wait_for_timeout(400)
+    except Exception:
+        pass
+
+
 async def _apply_search_filters(page: Page, sort_mode: SortMode = "latest") -> None:
     for label in ("Posts", "Post"):
         if await click_filter_button(page, label):
             break
+    await _dismiss_open_filter_panels(page)
+
     for label in _SORT_CONFIG[sort_mode]["labels"]:
         if await click_filter_button(page, label):
             break
-    for label in ("Past 24 hours", "Past 24 Hours", "Past 24h", "24 hours"):
-        if await click_filter_button(page, label):
-            break
+    await _dismiss_open_filter_panels(page)
+
+    # URL already has datePosted=past-24h; only reinforce if the chip is missing.
+    try:
+        chip = page.locator('button:has-text("Past 24 hours"), button:has-text("Past 24 Hours")').first
+        already = await chip.count() > 0 and await chip.is_visible()
+    except Exception:
+        already = False
+    if not already:
+        for label in ("Past 24 hours", "Past 24 Hours", "Past 24h", "24 hours"):
+            if await click_filter_button(page, label):
+                # Dropdown opened — select radio + Show results
+                try:
+                    radio = page.locator('text=Past 24 hours').first
+                    if await radio.count() > 0:
+                        await radio.click()
+                        await page.wait_for_timeout(400)
+                except Exception:
+                    pass
+                break
+    await _dismiss_open_filter_panels(page)
 
 
 async def _debug_page_state(page: Page, keyword: str) -> None:
     stats = await page.evaluate(
-        """() => ({
-            links: document.querySelectorAll('a[href*="/feed/update/"], a[href*="/posts/"]').length,
-            chameleon: document.querySelectorAll('[data-chameleon-result-urn]').length,
-            results: document.querySelectorAll('li.reusable-search__result-container').length,
-            feedPosts: (document.body?.innerText || '').includes('Feed post'),
-            title: document.title,
-            snippet: (document.body?.innerText || '').slice(0, 320).replace(/\\s+/g, ' '),
-        })"""
+        """() => {
+            const mainText = document.querySelector('main')?.innerText || document.body?.innerText || '';
+            const feedChunks = mainText.split(/(?=Feed post\\b)/i).filter(c => /Feed post/i.test(c)).length;
+            return {
+                links: document.querySelectorAll('a[href*="/feed/update/"], a[href*="/posts/"]').length,
+                chameleon: document.querySelectorAll('[data-chameleon-result-urn]').length,
+                results: document.querySelectorAll('li.reusable-search__result-container').length,
+                feedPosts: mainText.includes('Feed post'),
+                feedChunks,
+                title: document.title,
+                snippet: mainText.slice(0, 320).replace(/\\s+/g, ' '),
+            };
+        }"""
     )
     print(
         f"  Debug [{keyword}]: chameleon={stats.get('chameleon')} "
         f"results={stats.get('results')} feed_post_text={stats.get('feedPosts')} "
-        f"post_links={stats.get('links')}"
+        f"feed_chunks={stats.get('feedChunks')} post_links={stats.get('links')}"
     )
     print(f"  Snippet: {stats.get('snippet')!r}")
 
@@ -263,6 +363,7 @@ def _merge_batch(
                 "author": item.get("author", ""),
                 "post_text": item.get("post_text", ""),
                 "image_urls": list(item.get("image_urls") or []),
+                "company_url": (item.get("company_url") or "").strip(),
                 "keyword": keyword,
                 "role_tag": role_tag,
             }
@@ -300,8 +401,8 @@ async def _search_keyword_with_sort(
     before = len(posts)
     _merge_batch(await page.evaluate(EXTRACT_POSTS_JS) or [], keyword, role_tag, posts, seen_urls)
 
-    # Split scroll budget across both sorts so total time stays reasonable.
-    scroll_passes = max(3, SCROLL_COUNT // 2)
+    # Double budget vs prior default: each sort gets half of SCROLL_COUNT (min 6).
+    scroll_passes = max(6, SCROLL_COUNT // 2)
     print(f"  Scrolling {scroll_passes}x ({label})...")
     for i in range(scroll_passes):
         if len(posts) >= MAX_POSTS_PER_SEARCH:
@@ -311,6 +412,8 @@ async def _search_keyword_with_sort(
                 const main = document.querySelector('main') || document.body;
                 main.scrollTop = main.scrollHeight;
                 window.scrollTo(0, document.body.scrollHeight);
+                const scroller = document.querySelector('.scaffold-finite-scroll__content')?.parentElement;
+                if (scroller) scroller.scrollTop = scroller.scrollHeight;
             }"""
         )
         await page.wait_for_timeout(2200)
@@ -319,7 +422,7 @@ async def _search_keyword_with_sort(
 
     added = len(posts) - before
     print(f"  [{label}] +{added} new posts (total {len(posts)})")
-    if added == 0 and before == 0:
+    if added == 0:
         await _debug_page_state(page, f"{keyword}_{sort_mode}")
 
 

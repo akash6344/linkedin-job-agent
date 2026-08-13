@@ -82,7 +82,8 @@ OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "llama3.1")
 MAX_YEARS_EXPERIENCE = int(os.environ.get("MAX_YEARS_EXPERIENCE", "3"))
 MAX_POSTS_PER_SEARCH = int(os.environ.get("MAX_POSTS_PER_SEARCH", "80"))
 SEARCH_DELAY_SEC = int(os.environ.get("SEARCH_DELAY_SEC", "15"))
-SCROLL_COUNT = int(os.environ.get("SCROLL_COUNT", "12"))
+# Scroll passes shared across Top match + Latest (each sort uses ~half).
+SCROLL_COUNT = int(os.environ.get("SCROLL_COUNT", "24"))
 PAGE_LOAD_DELAY_SEC = 3
 # How often LaunchAgent runs (seconds). Default 30 minutes.
 SCHEDULE_INTERVAL_SEC = int(os.environ.get("SCHEDULE_INTERVAL_SEC", "1800"))
