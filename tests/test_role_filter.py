@@ -135,6 +135,33 @@ class TestRoleRequirement(unittest.TestCase):
         )
         self.assertTrue(ok)
 
+    def test_rejects_java_fullstack_title(self):
+        ok, reason = meets_role_requirement(
+            "Hiring Java Full Stack Developer with React and Spring Boot.",
+            {"job_title": "Java Full Stack Developer"},
+            "fullstack_developer",
+        )
+        self.assertFalse(ok)
+        self.assertIn("Java full stack", reason)
+
+    def test_rejects_fullstack_java_in_post_body(self):
+        ok, reason = meets_role_requirement(
+            "Skills: Java Full Stack (Angular + Python + DB), React JS. Bangalore.",
+            {"job_title": "Full Stack Developer"},
+            "software_engineer",
+        )
+        self.assertFalse(ok)
+        self.assertIn("Java full stack", reason)
+
+    def test_skips_java_fullstack_when_picking_title(self):
+        self.assertEqual(
+            sanitize_job_title(
+                "Java Full Stack Developer, MERN Stack Developer",
+                prefer_fullstack=True,
+            ),
+            "MERN Stack Developer",
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

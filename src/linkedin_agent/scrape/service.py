@@ -2,6 +2,7 @@
 
 import asyncio
 import hashlib
+import os
 import urllib.parse
 from typing import Any, Literal
 
@@ -66,34 +67,44 @@ EXTRACT_POSTS_JS = """() => {
         return m ? m[1].trim() : '';
     }
 
+    function urnToFeed(blob) {
+        const m = String(blob || '').match(/urn:li:(activity|ugcPost|share):(\\d+)/i);
+        if (!m) return '';
+        return `https://www.linkedin.com/feed/update/urn:li:${m[1]}:${m[2]}/`;
+    }
+
+    function permalinkFromHref(href) {
+        const raw = (href || '').split('?')[0].split('#')[0];
+        if (!raw) return '';
+        if (/linkedin\\.com\\/company\\/[^/]+\\/posts\\/?$/i.test(raw)) return '';
+        if (/\\/feed\\/update\\/urn:li:(?:activity|ugcPost|share):\\d+/i.test(raw)) return raw;
+        const activitySlug = raw.match(/linkedin\\.com\\/posts\\/[^/?#]*activity-(\\d+)/i);
+        if (activitySlug) return `https://www.linkedin.com/feed/update/urn:li:activity:${activitySlug[1]}/`;
+        return urnToFeed(raw);
+    }
+
     function pickUrl(el, text) {
         if (el) {
             for (const link of el.querySelectorAll('a[href]')) {
-                const href = (link.href || '').split('?')[0];
-                if (href.includes('/feed/update/') || href.includes('/posts/') || href.includes('activity-')) {
-                    return href;
-                }
+                const permalink = permalinkFromHref(link.href);
+                if (permalink) return permalink;
             }
-            const urnEl = el.closest('[data-urn], [data-chameleon-result-urn]')
-                || el.querySelector('[data-urn], [data-chameleon-result-urn]')
-                || el;
-            const urn = urnEl.getAttribute?.('data-urn')
-                || urnEl.getAttribute?.('data-chameleon-result-urn')
-                || '';
-            if (urn.includes('activity') || urn.includes('ugcPost')) {
-                const id = urn.split(':').pop();
-                return `https://www.linkedin.com/feed/update/urn:li:activity:${id}/`;
+            let node = el;
+            for (let i = 0; i < 8 && node; i++) {
+                const blob = [
+                    node.getAttribute?.('data-urn') || '',
+                    node.getAttribute?.('data-chameleon-result-urn') || '',
+                    node.getAttribute?.('data-id') || '',
+                    node.id || '',
+                ].join(' ');
+                const fromAttr = urnToFeed(blob);
+                if (fromAttr) return fromAttr;
+                node = node.parentElement;
             }
-            const profile = el.querySelector('a[href*="/in/"]');
-            if (profile?.href) {
-                return profile.href.split('?')[0] + '#post';
-            }
+            const fromHtml = urnToFeed(el.outerHTML || '');
+            if (fromHtml) return fromHtml;
         }
-        const urnInText = (text || '').match(/urn:li:(?:activity|ugcPost):(\\d+)/);
-        if (urnInText) {
-            return `https://www.linkedin.com/feed/update/urn:li:activity:${urnInText[1]}/`;
-        }
-        return '';
+        return urnToFeed(text);
     }
 
     function collectImages(el) {
@@ -207,6 +218,10 @@ EXTRACT_POSTS_JS = """() => {
 }"""
 
 
+# Cap Share→Copy-link clicks so a scrape doesn't click every result card.
+COPY_LINK_MAX = int(os.environ.get("COPY_LINK_MAX", "30"))
+
+
 def build_search_url(keyword: str, sort_mode: SortMode = "latest") -> str:
     params = {
         "keywords": keyword,
@@ -219,14 +234,120 @@ def build_search_url(keyword: str, sort_mode: SortMode = "latest") -> str:
 
 
 def _stable_url(item: dict[str, Any], keyword: str) -> str:
-    url = (item.get("url") or "").strip()
-    if url and not url.endswith("#post"):
-        return url
+    from linkedin_agent.links import canonical_post_url
+
+    permalink = canonical_post_url(item.get("url"))
+    if permalink:
+        return permalink
     digest = hashlib.sha256(
         f"{keyword}|{item.get('author', '')}|{item.get('post_text', '')[:500]}".encode("utf-8")
     ).hexdigest()[:16]
     slug = keyword.lower().replace(" ", "-")
     return f"https://linkedin.local/post/{slug}/{digest}"
+
+
+async def _dismiss_linkedin_popovers(page: Page) -> None:
+    try:
+        await page.keyboard.press("Escape")
+        await page.wait_for_timeout(200)
+        await page.keyboard.press("Escape")
+    except Exception:
+        pass
+
+
+async def _read_copied_permalink(page: Page) -> str:
+    from linkedin_agent.links import canonical_post_url
+
+    raw = ""
+    try:
+        raw = await page.evaluate("() => navigator.clipboard.readText()")
+    except Exception:
+        raw = ""
+    permalink = canonical_post_url(raw)
+    if permalink:
+        return permalink
+    try:
+        from_input = await page.evaluate(
+            """() => {
+                const inp = document.querySelector(
+                    'input[value*="linkedin.com/feed/update"], input[value*="linkedin.com/posts/"]'
+                );
+                return inp && inp.value ? inp.value : '';
+            }"""
+        )
+        return canonical_post_url(from_input)
+    except Exception:
+        return ""
+
+
+async def _click_copy_link_on_card(page: Page, snippet: str) -> str:
+    """Open Share (or ⋯) on a search card and click Copy link — same as the UI."""
+    await _dismiss_linkedin_popovers(page)
+    opened = await page.evaluate(
+        """(snippet) => {
+            const needle = String(snippet || '').slice(0, 70).toLowerCase();
+            if (!needle) return { ok: false, reason: 'empty' };
+            const cards = [...document.querySelectorAll(
+                '[data-chameleon-result-urn], li.reusable-search__result-container, .feed-shared-update-v2, main ul > li'
+            )];
+            const card = cards.find(el => (el.innerText || '').toLowerCase().includes(needle));
+            if (!card) return { ok: false, reason: 'no-card' };
+            card.scrollIntoView({ block: 'center' });
+            const buttons = [...card.querySelectorAll('button, [role="button"]')];
+            const share = buttons.find(b => /share/i.test((b.getAttribute('aria-label') || '') + ' ' + (b.innerText || '')));
+            if (share) { share.click(); return { ok: true, step: 'share' }; }
+            const more = buttons.find(b => /more|control menu|open overflow/i.test(b.getAttribute('aria-label') || ''));
+            if (more) { more.click(); return { ok: true, step: 'more' }; }
+            return { ok: false, reason: 'no-share' };
+        }""",
+        snippet,
+    )
+    if not opened or not opened.get("ok"):
+        return ""
+    await page.wait_for_timeout(500)
+    clicked = await page.evaluate(
+        """() => {
+            const nodes = [...document.querySelectorAll('button, [role="menuitem"], [role="button"], li, div, span')];
+            const el = nodes.find(n => {
+                const t = (n.innerText || '').replace(/\\s+/g, ' ').trim();
+                const al = n.getAttribute('aria-label') || '';
+                return /copy link( to post)?/i.test(t) || /copy link( to post)?/i.test(al);
+            });
+            if (!el) return false;
+            el.click();
+            return true;
+        }"""
+    )
+    await page.wait_for_timeout(400)
+    permalink = await _read_copied_permalink(page) if clicked else ""
+    await _dismiss_linkedin_popovers(page)
+    return permalink
+
+
+async def _resolve_permalinks_via_copy_link(page: Page, posts: list[dict[str, Any]]) -> None:
+    """Fill missing /feed/update/ URLs using LinkedIn's Share → Copy link control."""
+    from linkedin_agent.links import canonical_post_url
+
+    missing = [p for p in posts if not canonical_post_url(p.get("url"))]
+    if not missing:
+        return
+    to_fix = missing[:COPY_LINK_MAX]
+    print(f"  Copy-link for {len(to_fix)} post(s) missing permalinks...")
+    filled = 0
+    for post in to_fix:
+        snippet = (post.get("author") or "") + "\n" + (post.get("post_text") or "")
+        snippet = snippet.replace("Feed post", "").strip()
+        if len(snippet) < 20:
+            continue
+        try:
+            permalink = await _click_copy_link_on_card(page, snippet[:90])
+        except Exception:
+            permalink = ""
+        if permalink:
+            post["url"] = permalink
+            filled += 1
+        await page.wait_for_timeout(250)
+    print(f"  Copy-link filled {filled}/{len(to_fix)} permalinks")
 
 
 async def _scroll_results(page: Page, passes: int) -> None:
@@ -424,6 +545,8 @@ async def _search_keyword_with_sort(
     print(f"  [{label}] +{added} new posts (total {len(posts)})")
     if added == 0:
         await _debug_page_state(page, f"{keyword}_{sort_mode}")
+    else:
+        await _resolve_permalinks_via_copy_link(page, posts[before:])
 
 
 async def search_role(page: Page, role: dict[str, str]) -> list[dict[str, Any]]:

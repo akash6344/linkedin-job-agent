@@ -44,7 +44,7 @@ _WRONG_STACK_TITLE = re.compile(
     r"(?:^|\W)\.net(?:\W|$)|"
     r"\bdotnet\b|\bc\s*#\b|\bcsharp\b|"
     r"(?:^|\W)asp\.net(?:\W|$)|"
-    r"\bjava(?:\s+(?:developer|engineer|full\s*stack))\b|"
+    r"\bjava(?:\s+(?:developer|engineer|full[\s-]?stack|fullstack))\b|"
     r"\bj2ee\b|\bspring\s*boot(?:\s+developer)?\b|"
     r"\blaravel\b|\bphp(?:\s+developer)?\b|"
     r"\bruby\b|\brails\b|"
@@ -54,6 +54,17 @@ _WRONG_STACK_TITLE = re.compile(
     r"\bflutter\s+developer\b|\bdart\s+developer\b|"
     r"\bwordpress\s+developer\b|\bdrupal\b"
     r")",
+    re.I,
+)
+
+# Never apply to Java full-stack roles (even if the post also mentions React/Python).
+_JAVA_FULLSTACK = re.compile(
+    r"\b(?:"
+    r"java[\s/,&+]*(?:spring(?:\s*boot)?[\s/,&+]*)?(?:full[\s-]?stack|fullstack)|"
+    r"(?:full[\s-]?stack|fullstack)[\s/,&+]*(?:developer|engineer|dev)?[\s/,&+]*java|"
+    r"j2ee[\s/,&+]*(?:full[\s-]?stack|fullstack)|"
+    r"spring\s*boot[\s/,&+]*(?:full[\s-]?stack|fullstack)"
+    r")\b",
     re.I,
 )
 
@@ -202,7 +213,9 @@ def sanitize_job_title(
         fs_parts = [
             p
             for p in parts
-            if _FULLSTACK_TITLE.search(p) and not _NON_TECH_TITLE_PATTERN.search(p)
+            if _FULLSTACK_TITLE.search(p)
+            and not _NON_TECH_TITLE_PATTERN.search(p)
+            and not _JAVA_FULLSTACK.search(p)
         ]
         if fs_parts:
             return fs_parts[0]
@@ -238,6 +251,9 @@ def meets_role_requirement(
 
     if _NON_TECH_TITLE_PATTERN.search(title_text):
         return False, f"Role mismatch (non-tech title): {title_text}"
+
+    if _JAVA_FULLSTACK.search(title_text) or _JAVA_FULLSTACK.search(full_text):
+        return False, f"Role mismatch (Java full stack): {title_text or 'post'}"
 
     if _WRONG_STACK_TITLE.search(title_text):
         # Allow if the post also mentions Python/Node/React (multi-stack role).

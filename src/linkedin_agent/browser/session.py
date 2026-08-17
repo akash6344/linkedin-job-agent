@@ -219,6 +219,13 @@ async def create_browser_context(
         window.chrome = window.chrome || { runtime: {} };
         """
     )
+    try:
+        await context.grant_permissions(
+            ["clipboard-read", "clipboard-write"],
+            origin="https://www.linkedin.com",
+        )
+    except Exception:
+        pass
     context._linkedin_mode_label = label  # type: ignore[attr-defined]
 
     if hide_chrome:

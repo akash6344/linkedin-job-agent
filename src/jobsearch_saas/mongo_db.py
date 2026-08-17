@@ -6,6 +6,7 @@ call sites keep working. JOINs are resolved in-process (MVP scale).
 
 from __future__ import annotations
 
+import os
 import re
 import threading
 from contextlib import contextmanager
@@ -149,20 +150,34 @@ def _normalize_sql(sql: str) -> str:
     return re.sub(r"\s+", " ", sql.strip())
 
 
+def _tls_ca_file() -> str | None:
+    try:
+        import certifi
+
+        ca = certifi.where()
+        os.environ.setdefault("SSL_CERT_FILE", ca)
+        os.environ.setdefault("REQUESTS_CA_BUNDLE", ca)
+        return ca
+    except Exception:
+        return None
+
+
 def _client(uri: str) -> MongoClient:
     global _CLIENT
     with _LOCK:
         if _CLIENT is None:
+            # Vercel / OpenSSL 3 often fails Atlas OCSP during handshake
+            # (TLSV1_ALERT_INTERNAL_ERROR). Disable the extra OCSP HTTP
+            # check; certificate verification still uses the CA bundle.
             kwargs: dict[str, Any] = {
                 "serverSelectionTimeoutMS": 20000,
                 "connectTimeoutMS": 20000,
+                "tls": True,
+                "tlsDisableOCSPEndpointCheck": True,
             }
-            try:
-                import certifi
-
-                kwargs["tlsCAFile"] = certifi.where()
-            except Exception:
-                pass
+            ca = _tls_ca_file()
+            if ca:
+                kwargs["tlsCAFile"] = ca
             _CLIENT = MongoClient(uri, **kwargs)
         return _CLIENT
 

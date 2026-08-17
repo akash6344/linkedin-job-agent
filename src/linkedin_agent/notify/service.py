@@ -12,7 +12,7 @@ from typing import Any
 
 from linkedin_agent.apply.email_sender import send_plain_email
 from linkedin_agent.config import FORM_NOTIFY_EMAIL, NAME, TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
-from linkedin_agent.links import browse_link, is_synthetic_post_url
+from linkedin_agent.links import browse_link, canonical_post_url, enrich_company_url
 
 # Production caps so digests stay readable under high volume.
 MAX_DIGEST_ROWS = 40
@@ -81,15 +81,15 @@ def _item_from_post(
     resume_key: str = "",
 ) -> DigestItem:
     company_name = company or post.get("company") or ""
-    link = browse_link(post, company=company_name)
-    raw_url = (post.get("url") or "").strip()
+    permalink = canonical_post_url(post.get("url"))
+    company_link = enrich_company_url(post, company=company_name)
     return DigestItem(
         kind=kind,
         company=_clean(company_name),
         job_title=_clean(job_title or post.get("job_title")),
         keyword=_clean(post.get("keyword"), "job"),
-        post_url=_clean(link if link else raw_url, ""),
-        company_url=_clean(post.get("company_url") or "", ""),
+        post_url=_clean(permalink, ""),
+        company_url=_clean(company_link or post.get("company_url") or "", ""),
         apply_email=_clean(apply_email, ""),
         form_url=_clean(form_url, ""),
         reason=_clean(reason, ""),
@@ -100,14 +100,8 @@ def _item_from_post(
 def _link_lines(item: DigestItem) -> list[str]:
     lines: list[str] = []
     if item.post_url:
-        label = "Company" if is_synthetic_post_url(item.post_url) or "/company/" in item.post_url or "keywords=" in item.post_url else "Post"
-        # browse_link already resolved; if it's company search/page, label Company
-        if "/company/" in item.post_url or "results/companies" in item.post_url:
-            label = "Company"
-        elif not is_synthetic_post_url(item.post_url) and "linkedin.com" in item.post_url:
-            label = "Post"
-        lines.append(f"     {label}: {item.post_url}")
-    elif item.company_url:
+        lines.append(f"     Post: {item.post_url}")
+    if item.company_url and item.company_url != item.post_url:
         lines.append(f"     Company: {item.company_url}")
     return lines
 

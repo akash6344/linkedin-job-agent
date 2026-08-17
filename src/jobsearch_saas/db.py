@@ -12,6 +12,25 @@ from urllib.parse import urlparse
 
 from jobsearch_saas.config import DATABASE_URL, MONGO_URI, UPLOAD_DIR, use_mongo
 
+MONGO_UNREACHABLE_HINT = (
+    "Can't reach MongoDB Atlas (TLS handshake failed). In Atlas → Network Access, "
+    "add 0.0.0.0/0 so Vercel can connect, then retry sign-in."
+)
+
+
+def is_mongo_unreachable(exc: BaseException) -> bool:
+    msg = str(exc)
+    markers = (
+        "SSL handshake failed",
+        "TLSV1_ALERT",
+        "ServerSelectionTimeout",
+        "ReplicaSetNoPrimary",
+        "timed out",
+        "MongoTimeout",
+        "ssl.c",
+    )
+    return any(m in msg for m in markers)
+
 
 def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()

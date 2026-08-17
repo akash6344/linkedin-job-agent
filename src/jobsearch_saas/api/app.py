@@ -305,8 +305,8 @@ def auth_google_callback(request: Request, code: str = "", state: str = "") -> R
         )
     except Exception as exc:
         msg = str(exc) or "Google sign-in failed."
-        if "ServerSelectionTimeout" in msg or "MongoDB" in msg:
-            msg = "Database connection failed. For local dev, set SAAS_FORCE_SQLITE=1 in .env"
+        if db.is_mongo_unreachable(exc):
+            msg = db.MONGO_UNREACHABLE_HINT
         flash(request, msg)
         return RedirectResponse("/login", status_code=303)
 
